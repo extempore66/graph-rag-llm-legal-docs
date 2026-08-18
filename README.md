@@ -48,7 +48,9 @@ Ingestion (Step 1) and entity extraction (Step 3) are complete across the full c
 
 ## Getting the source corpus
 
-The 187 source PDFs aren't in this repo (a downloaded public-records corpus isn't this project's own IP, and it's too large to be worth bloating repo history with). They're available as a [GitHub Release](../../releases) asset instead.
+The full 187-file corpus isn't included here. These are unsealed but still sensitive federal litigation records — many contain names of alleged victims and witnesses — and bulk-republishing the whole docket isn't something this project wants to be a vector for, independent of the files being technically public record.
+
+`samples/` includes three representative filings instead: purely procedural documents (a letter-motion, a court order, a filing cover letter) with no exhibits or witness content, enough to run the full pipeline end-to-end and see real output. To run against the complete docket, source it yourself (PACER, CourtListener, etc.) and drop the PDFs into a local folder.
 
 ## Running it
 
@@ -61,6 +63,11 @@ docker run -d -p 8529:8529 -e ARANGO_ROOT_PASSWORD=<your-password> --name arango
 cd node
 npm install
 cp .env.example .env   # fill in your ArangoDB connection details
+npm start              # Step 1 — serves POST /upload (extract, chunk, embed, write)
+
+# in another terminal, ingest the sample filings:
+for f in ../samples/*.pdf; do curl -F "file=@$f" http://localhost:3000/upload; done
+
 npm run run-extraction # Step 3 batch run (resumable)
 npm run run-dedup      # Steps 4-6 batch run (resumable, bounded concurrency)
 ```
