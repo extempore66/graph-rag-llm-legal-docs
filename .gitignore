@@ -1,0 +1,38 @@
+# Secrets -- never commit these
+_credentials.txt
+.env
+*.env
+!.env.example
+
+# Python
+python/.venv/
+python/__pycache__/
+**/__pycache__/
+*.pyc
+
+# Node
+node/node_modules/
+
+# Generated data (LanceDB local storage, test outputs -- not source)
+data/
+node/uploads/
+node/logs/
+
+# OS cruft
+.DS_Store
+
+# Source PDF corpus -- 182MB, publicly available court filings, not our own
+# work product. Shipped separately as a GitHub Release asset instead of
+# bloating repo history.
+shabosan_epstein_files/
+
+# Unfinished decks -- to be added once complete
+Graph_RAG_LLM_Overview.pptx
+Graph_RAG_LLM_Story.pptx
+
+# Internal working notes (raw Q&A build logs) -- distilled into the public
+# top-level README.md instead of shipped as-is.
+_project_architecture_considerations.md
+_project_step_by_step_plan.md
+_step_by_step_absolute.md
+_step3_extraction_reference.md

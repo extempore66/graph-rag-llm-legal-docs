@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug: extract_and_chunk.py (sample PDF)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/python/extract_and_chunk.py",
+            "args": [
+                "${workspaceFolder}/shabosan_epstein_files/gov.uscourts.nysd.447706.1321.0.pdf"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}/python"
+        }
+    ]
+}

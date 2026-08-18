@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Graph RAG Ingestion — Batch Upload</title>
+<style>
+  /* Deliberately minimal, no CSS framework -- this is an internal single-user
+     tool, not a public product page. */
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.4rem; }
+  #dropzone {
+    border: 2px dashed #999; border-radius: 8px; padding: 2rem; text-align: center;
+    color: #555; cursor: pointer; margin-bottom: 1rem;
+  }
+  #dropzone.dragover { border-color: #2563eb; background: #eff6ff; color: #1e3a8a; }
+  #controls { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+  button { padding: 0.5rem 1rem; cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: 0.5; }
+  #summary { margin-bottom: 0.5rem; font-size: 0.95rem; }
+  #progressBarOuter { background: #eee; border-radius: 4px; height: 1.1rem; overflow: hidden; margin-bottom: 1rem; }
+  #progressBarInner { background: #2563eb; height: 100%; width: 0%; transition: width 0.2s; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 0.3rem 0.5rem; border-bottom: 1px solid #eee; }
+  .status-pending { color: #999; }
+  .status-uploading { color: #b45309; }
+  .status-done { color: #15803d; }
+  .status-error { color: #b91c1c; }
+</style>
+</head>
+<body>
+
+<h1>Graph RAG Ingestion — Batch Upload</h1>
+<p>Select a folder of PDFs (or drag files in below), then click Start Upload. Non-PDF files are skipped automatically.</p>
+
+<div id="dropzone">
+  Drag PDF files here, or click to choose files
+  <br /><br />
+  <button id="pickFilesBtn" type="button">Select files</button>
+  <button id="pickFolderBtn" type="button">Select folder</button>
+</div>
+
+<!-- Two hidden inputs feeding the same file-selection handler: one plain
+     multi-file picker, one whole-folder picker (webkitdirectory is a
+     de-facto standard, supported in Chrome/Edge/Safari -- the "select
+     files" button above is the fallback for anyone/anywhere it isn't). -->
+<input type="file" id="fileInput" multiple accept="application/pdf" hidden />
+<input type="file" id="folderInput" webkitdirectory multiple hidden />
+
+<div id="controls">
+  <button id="startBtn" type="button" disabled>Start Upload</button>
+  <span id="selectionSummary"></span>
+</div>
+
+<div id="progressBarOuter"><div id="progressBarInner"></div></div>
+<div id="summary"></div>
+
+<table>
+  <thead>
+    <tr><th>File</th><th>Status</th><th>Chunks</th><th>Detail</th></tr>
+  </thead>
+  <tbody id="fileTableBody"></tbody>
+</table>
+
+<script>
+// ---------------------------------------------------------------------
+// N.7 -- batch upload UI. No build step, no framework: this is a single
+// self-contained page for one person driving ingestion of a known folder
+// of PDFs, so plain DOM + fetch is enough.
+//
+// Two independent signals drive the table, on purpose:
+//  - The SSE stream (/events, built in N.6) drives the "pending -> uploading"
+//    transition live, the moment the server's worker pool actually picks a
+//    file up -- fetch alone can't show this, since fetch only resolves once
+//    the whole request (often several seconds of PDF/embedding work) is
+//    completely finished.
+//  - Each file's own fetch() response is the terminal source of truth for
+//    "done"/"error" and the actual result payload (chunk_count etc.) --
+//    it's a 1:1 result for that specific request, whereas SSE events are
+//    matched back to a row only by filename (fine here since this app
+//    stays single-user/single-tenant with one batch running at a time --
+//    see the plan doc's multi-tenancy discussion).
+// ---------------------------------------------------------------------
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const folderInput = document.getElementById("folderInput");
+const pickFilesBtn = document.getElementById("pickFilesBtn");
+const pickFolderBtn = document.getElementById("pickFolderBtn");
+const startBtn = document.getElementById("startBtn");
+const selectionSummary = document.getElementById("selectionSummary");
+const progressBarInner = document.getElementById("progressBarInner");
+const summaryEl = document.getElementById("summary");
+const tableBody = document.getElementById("fileTableBody");
+
+// Map<filename, { file, rowEl, statusCell, chunksCell, detailCell }>
+// Keyed by filename since that's the only identifier both the fetch
+// response and the SSE events agree on (see note above).
+let selectedFiles = new Map();
+
+function isPdf(file) {
+  return file.name.toLowerCase().endsWith(".pdf");
+}
+
+function handleFileSelection(fileList) {
+  const allFiles = Array.from(fileList);
+  const pdfFiles = allFiles.filter(isPdf);
+  const skipped = allFiles.length - pdfFiles.length;
+
+  selectedFiles = new Map(pdfFiles.map((f) => [f.name, { file: f }]));
+
+  selectionSummary.textContent =
+    `${pdfFiles.length} PDF file(s) selected` + (skipped > 0 ? ` (${skipped} non-PDF file(s) skipped)` : "");
+  startBtn.disabled = selectedFiles.size === 0;
+}
+
+pickFilesBtn.addEventListener("click", () => fileInput.click());
+pickFolderBtn.addEventListener("click", () => folderInput.click());
+fileInput.addEventListener("change", () => handleFileSelection(fileInput.files));
+folderInput.addEventListener("change", () => handleFileSelection(folderInput.files));
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  dropzone.classList.add("dragover");
+});
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("dragover");
+  handleFileSelection(e.dataTransfer.files);
+});
+
+function buildTable() {
+  tableBody.innerHTML = "";
+  for (const [name, entry] of selectedFiles) {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${name}</td>
+      <td class="status-pending" data-role="status">pending</td>
+      <td data-role="chunks"></td>
+      <td data-role="detail"></td>
+    `;
+    tableBody.appendChild(row);
+    entry.statusCell = row.querySelector('[data-role="status"]');
+    entry.chunksCell = row.querySelector('[data-role="chunks"]');
+    entry.detailCell = row.querySelector('[data-role="detail"]');
+  }
+}
+
+function setRowStatus(name, status, text) {
+  const entry = selectedFiles.get(name);
+  if (!entry || !entry.statusCell) return; // event for a file from a previous/different run -- ignore
+  entry.statusCell.className = `status-${status}`;
+  entry.statusCell.textContent = text;
+}
+
+let doneCount = 0;
+let errorCount = 0;
+
+function updateOverallProgress() {
+  const total = selectedFiles.size;
+  const finished = doneCount + errorCount;
+  progressBarInner.style.width = `${total === 0 ? 0 : (finished / total) * 100}%`;
+  summaryEl.textContent = `${finished}/${total} finished (${doneCount} succeeded, ${errorCount} failed)`;
+}
+
+// --- SSE: live "started processing" signal -----------------------------
+function connectProgressStream() {
+  const source = new EventSource("/events");
+  source.onmessage = (e) => {
+    const event = JSON.parse(e.data);
+    if (event.type === "start") {
+      setRowStatus(event.file, "uploading", "uploading...");
+    }
+    // "done"/"error" are handled off each file's own fetch() response
+    // instead (see uploadOneFile) -- that's the authoritative result for
+    // that specific request, and arrives with the same information this
+    // event carries anyway.
+  };
+  source.onerror = () => {
+    // EventSource auto-reconnects on its own; nothing extra required here.
+    // Logged only so a stalled connection is visible during debugging.
+    console.warn("SSE connection dropped, browser will attempt to reconnect...");
+  };
+  return source;
+}
+
+// --- Upload: one fetch per file, all fired together ---------------------
+// The server's own p-limit(4) pool (N.5) bounds real concurrency -- this
+// client intentionally does not add a second limiter, it just fires
+// everything and lets the server queue what it can't run yet, the same
+// approach already proven in concurrency_test.js.
+async function uploadOneFile(name, file) {
+  const form = new FormData();
+  form.append("file", file, name);
+  try {
+    const response = await fetch("/upload", { method: "POST", body: form });
+    const body = await response.json();
+    if (response.ok) {
+      doneCount++;
+      setRowStatus(name, "done", "done");
+      selectedFiles.get(name).chunksCell.textContent = body.chunk_count ?? "";
+    } else {
+      errorCount++;
+      setRowStatus(name, "error", "error");
+      selectedFiles.get(name).detailCell.textContent = body.error ?? `HTTP ${response.status}`;
+    }
+  } catch (err) {
+    // Network-level failure -- never even reached the server's pool, so no
+    // SSE event exists for this one either.
+    errorCount++;
+    setRowStatus(name, "error", "error");
+    selectedFiles.get(name).detailCell.textContent = err.message;
+  } finally {
+    updateOverallProgress();
+  }
+}
+
+startBtn.addEventListener("click", async () => {
+  startBtn.disabled = true;
+  pickFilesBtn.disabled = true;
+  pickFolderBtn.disabled = true;
+  doneCount = 0;
+  errorCount = 0;
+  buildTable();
+  updateOverallProgress();
+
+  // Connect before firing uploads so the very first "start" events aren't
+  // missed while the connection is still being established.
+  const source = connectProgressStream();
+
+  const uploads = Array.from(selectedFiles.entries()).map(([name, entry]) => uploadOneFile(name, entry.file));
+  await Promise.allSettled(uploads);
+
+  source.close();
+  summaryEl.textContent += " — batch complete.";
+});
+</script>
+</body>
+</html>

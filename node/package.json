@@ -1,0 +1,29 @@
+{
+  "name": "graph-rag-node",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "description": "Node half of the Graph RAG ingestion pipeline: web layer, MCP server, orchestration.",
+  "scripts": {
+    "test-handoff": "node --env-file=.env src/handoff_test.js",
+    "test-lancedb": "node --env-file=.env src/lancedb_test.js",
+    "test-arango": "node --env-file=.env src/arango_test.js",
+    "start": "node --env-file=.env src/server.js",
+    "test-concurrency": "node --env-file=.env src/concurrency_test.js",
+    "test-sse": "node --env-file=.env src/sse_test.js",
+    "test-extraction": "node --env-file=.env src/entityExtraction_test.js",
+    "run-extraction": "node --env-file=.env src/extractionBatchRunner.js",
+    "run-dedup": "node --env-file=.env src/dedupBatchRunner.js"
+  },
+  "dependencies": {
+    "@lancedb/lancedb": "^0.37.1",
+    "arangojs": "^10.3.1",
+    "express": "^5.2.1",
+    "jaro-winkler": "^0.2.8",
+    "multer": "^2.2.0",
+    "p-limit": "^7.3.1"
+  }
+}
