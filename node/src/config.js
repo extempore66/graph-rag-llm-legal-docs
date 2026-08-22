@@ -39,7 +39,11 @@ export const LANCEDB_CHUNKS_TABLE = "je_chunks";
 // here. Exists because Steps 4-6 (dedup/judgment/merge) aren't built yet;
 // this is where Step 3's batch runner persists results so that expensive
 // LLM extraction work never has to be redone once Steps 4-6 do exist.
-export const ARANGO_RAW_EXTRACTIONS_COLLECTION = "je_raw_extractions";
+// Env-overridable so a schema/prompt change can be trial-run into a scratch
+// collection (ARANGO_RAW_EXTRACTIONS_COLLECTION=je_raw_extractions_test) and
+// inspected before the real 3,569-chunk extraction is destroyed.
+export const ARANGO_RAW_EXTRACTIONS_COLLECTION =
+  process.env.ARANGO_RAW_EXTRACTIONS_COLLECTION || "je_raw_extractions";
 
 // Ollama's own HTTP endpoint. No server-side auth/deployment concerns here
 // (it's always localhost in this project's single-machine setup) but kept
@@ -74,7 +78,8 @@ export const UPLOAD_CONCURRENCY = process.env.UPLOAD_CONCURRENCY
 // je_entities/je_mentioned_in were in the original design; je_possible_duplicates
 // is a necessary addition (the design only said "a flagged possible-duplicate
 // edge" without naming a collection for it) for Step 5's "unsure" outcome.
-export const ARANGO_ENTITIES_COLLECTION = "je_entities";
+export const ARANGO_ENTITIES_COLLECTION =
+  process.env.ARANGO_ENTITIES_COLLECTION || "je_entities";
 export const ARANGO_MENTIONED_IN_COLLECTION = "je_mentioned_in";
 export const ARANGO_POSSIBLE_DUPLICATES_COLLECTION = "je_possible_duplicates";
 export const LANCEDB_ENTITY_MENTIONS_TABLE = "je_entity_mentions";
@@ -111,3 +116,56 @@ export const JARO_WINKLER_THRESHOLD = process.env.JARO_WINKLER_THRESHOLD
 export const DEDUP_CONCURRENCY = process.env.DEDUP_CONCURRENCY
   ? parseInt(process.env.DEDUP_CONCURRENCY, 10)
   : 3;
+
+// Step 7 (coreference). Edge collection linking entity nodes judged to be the
+// same real-world entity under different surface forms ("Jeffrey Epstein" /
+// "Mr. Epstein" / "Epstein"). Deliberately an edge layer rather than a
+// destructive merge: legal provenance means the surface form the document
+// actually used has to stay recoverable, an edge is reversible where a merge
+// is not, and every coref decision stays auditable instead of being baked in.
+export const ARANGO_SAME_AS_COLLECTION = process.env.ARANGO_SAME_AS_COLLECTION || "je_same_as";
+
+// Largest candidate cluster handed to one Step 7 LLM call. Measured against
+// the real graph: of 2,115 (type, token) pairs only ~13 exceed 15 members, so
+// this cap costs almost nothing in coverage while keeping the prompt well
+// inside the 4096-token context. Oversized clusters are truncated to their
+// highest-mention members (the ones that actually matter for retrieval) and
+// the truncation is logged rather than done silently.
+export const COREF_MAX_CLUSTER_SIZE = process.env.COREF_MAX_CLUSTER_SIZE
+  ? parseInt(process.env.COREF_MAX_CLUSTER_SIZE, 10)
+  : 15;
+
+// How many clusters Step 7 judges concurrently. Same reasoning as
+// DEDUP_CONCURRENCY, but without the race: Step 7 only ever writes edges
+// between entities that already exist, so there is no check-then-act to lose.
+export const COREF_CONCURRENCY = process.env.COREF_CONCURRENCY
+  ? parseInt(process.env.COREF_CONCURRENCY, 10)
+  : 3;
+
+// Which entity types may be compared against each other during dedup (Step 4)
+// and coreference (Step 7).
+//
+// Type is a hard partition everywhere downstream -- getEntitiesByType scopes
+// the Jaro-Winkler channel, searchSimilarMentions scopes the vector search,
+// buildClusters scopes coref. Before this, a name the model typed "court" in
+// one chunk and "organization" in another landed in two disjoint pools and
+// could never be merged by any pass, no matter how obvious the match. The
+// full-corpus audit found 68 such names ("county of palm beach" as both court
+// and organization, "abernathy" as all three).
+//
+// Adding "location" and "facility" would have made that worse on its own --
+// every extra box is another chance the model picks a different one for the
+// same name. Grouping is what converts the richer taxonomy into a net win:
+// place-like and institution-like types share a pool, so a mistyped place
+// still finds its twin, while a person is never compared against a building.
+const TYPE_GROUPS = [
+  ["person"],
+  ["court", "organization", "location", "facility"],
+];
+
+// Types a mention of `type` may draw candidates from, including itself. An
+// unknown type falls back to itself alone -- no silent widening.
+export function comparableTypes(type) {
+  const group = TYPE_GROUPS.find((g) => g.includes(type));
+  return group ?? [type];
+}

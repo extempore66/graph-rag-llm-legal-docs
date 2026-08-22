@@ -33,9 +33,10 @@ import {
   writeMentionedInEdge,
   writePossibleDuplicateEdge,
 } from "./entities.js";
-import { writeEntityMention } from "./entityMentions.js";
+import { writeEntityMention, pruneEntityMentions } from "./entityMentions.js";
 import { findCandidates, buildMentionEmbedding } from "./dedupCandidates.js";
 import { judgeCandidates } from "./dedupJudgment.js";
+import { withLock, entityLockKey } from "./asyncLock.js";
 
 // Optional cap for testing against a small slice before committing to the
 // full run -- e.g. `node src/dedupBatchRunner.js 10`. Omit for the real run.
@@ -62,23 +63,46 @@ function logFailure(chunkId, entityIndex, entityName, err) {
 async function processEntity(entity, chunk, chunkText) {
   const chunkFacts = { docket_numbers: chunk.docket_numbers, dates: chunk.dates };
 
+  // Embedding is computed outside the lock on purpose: it's the slowest step
+  // that touches nothing shared, so holding the lock across it would serialise
+  // same-name mentions for no correctness gain.
   const mentionEmbedding = await buildMentionEmbedding(entity, chunkText);
-  const candidates = await findCandidates(entity, mentionEmbedding);
 
-  let matchedEntityId = null;
-  let unsureCandidateIds = [];
+  // Everything from "look for an existing match" through "create if there
+  // wasn't one" is one critical section per entity name+type. findCandidates
+  // MUST be inside it -- that's the read half of the check-then-act, and
+  // leaving it outside would preserve the exact race this closes (worker A and
+  // worker B both look, both see nothing, both create). Different names never
+  // contend, so in practice only repeat mentions of the same person serialise.
+  //
+  // The LLM judgment sits inside the lock too, which is the real cost here.
+  // Accepted deliberately: correctness of the read is what makes the write
+  // safe, and a candidate list fetched before the lock could be stale by the
+  // time judgment finishes.
+  const { entityId, matchedEntityId, unsureCandidateIds } = await withLock(
+    entityLockKey(entity.name, entity.type),
+    async () => {
+      const candidates = await findCandidates(entity, mentionEmbedding);
 
-  if (candidates.length > 0) {
-    const judgments = await judgeCandidates(entity, chunkFacts, candidates);
-    const same = judgments.find((j) => j.verdict === "same");
-    if (same) {
-      matchedEntityId = same.entity_id;
-    } else {
-      unsureCandidateIds = judgments.filter((j) => j.verdict === "unsure").map((j) => j.entity_id);
+      let matchedEntityId = null;
+      let unsureCandidateIds = [];
+
+      if (candidates.length > 0) {
+        const judgments = await judgeCandidates(entity, chunkFacts, candidates);
+        const same = judgments.find((j) => j.verdict === "same");
+        if (same) {
+          matchedEntityId = same.entity_id;
+        } else {
+          unsureCandidateIds = judgments.filter((j) => j.verdict === "unsure").map((j) => j.entity_id);
+        }
+      }
+
+      const entityId =
+        matchedEntityId ?? (await createEntity({ name: entity.name, type: entity.type }));
+
+      return { entityId, matchedEntityId, unsureCandidateIds };
     }
-  }
-
-  const entityId = matchedEntityId ?? (await createEntity({ name: entity.name, type: entity.type }));
+  );
 
   if (!matchedEntityId) {
     for (const candidateId of unsureCandidateIds) {
@@ -230,6 +254,16 @@ await runWithConcurrency(jobs, DEDUP_CONCURRENCY, async ({ chunk, entityIndex })
   state.remaining--;
   await finishChunkIfDone(chunk._key);
 });
+
+// Safe here and nowhere earlier: runWithConcurrency has resolved, so every
+// worker is finished and this process is the table's only remaining user.
+const pruned = await pruneEntityMentions();
+if (pruned) {
+  console.log(
+    `[lance] reclaimed ${(pruned.bytesRemoved / 1e6).toFixed(0)} MB across ` +
+      `${pruned.versionsRemoved} superseded version(s)`
+  );
+}
 
 const elapsedMin = ((Date.now() - start) / 60000).toFixed(1);
 console.log(

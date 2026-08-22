@@ -14,6 +14,8 @@ import {
   ARANGO_ENTITIES_COLLECTION,
   ARANGO_MENTIONED_IN_COLLECTION,
   ARANGO_POSSIBLE_DUPLICATES_COLLECTION,
+  ARANGO_SAME_AS_COLLECTION,
+  comparableTypes,
 } from "./config.js";
 
 const db = new Database({
@@ -24,6 +26,7 @@ const db = new Database({
 const entitiesCollection = db.collection(ARANGO_ENTITIES_COLLECTION);
 const mentionedInCollection = db.collection(ARANGO_MENTIONED_IN_COLLECTION);
 const possibleDuplicatesCollection = db.collection(ARANGO_POSSIBLE_DUPLICATES_COLLECTION);
+const sameAsCollection = db.collection(ARANGO_SAME_AS_COLLECTION);
 let collectionsReady = false;
 
 // je_mentioned_in and je_possible_duplicates are true ArangoDB edge
@@ -46,6 +49,9 @@ export async function ensureEntitiesCollections() {
   }
   if (!(await possibleDuplicatesCollection.exists())) {
     await db.createEdgeCollection(ARANGO_POSSIBLE_DUPLICATES_COLLECTION);
+  }
+  if (!(await sameAsCollection.exists())) {
+    await db.createEdgeCollection(ARANGO_SAME_AS_COLLECTION);
   }
   collectionsReady = true;
 }
@@ -102,13 +108,17 @@ export async function getEntity(entityId) {
   }
 }
 
-// Feeds Step 4's Jaro-Winkler channel -- every existing entity name of the
-// given type, pulled into memory for in-process comparison (see the
-// ensureEntitiesCollections comment above for why this can't run in AQL).
+// Feeds Step 4's Jaro-Winkler channel -- every existing entity name in the
+// same comparable-type group, pulled into memory for in-process comparison
+// (see the ensureEntitiesCollections comment above for why this can't run in
+// AQL). Scoped by group rather than exact type since 2026-08-20: a name the
+// model typed "court" in one chunk and "location" in another has to be able to
+// find itself, or the mistype is permanent (see comparableTypes in config.js).
 export async function getEntitiesByType(type) {
+  const types = comparableTypes(type);
   const cursor = await db.query(aql`
     FOR e IN ${entitiesCollection}
-      FILTER e.type == ${type}
+      FILTER e.type IN ${types}
       RETURN { _key: e._key, name: e.name }
   `);
   return cursor.all();
@@ -127,4 +137,72 @@ export async function getMentionedInEdge(entityId, chunkId) {
   `);
   const results = await cursor.all();
   return results[0] || null;
+}
+
+// --- Step 7 (coreference) ---------------------------------------------------
+
+// Every entity with the aggregate evidence Step 7 partitions on: how often it
+// is mentioned, across how many distinct source documents, in which roles, and
+// a couple of sample evidence strings. This aggregate view is the entire point
+// of Step 7 -- Step 5 sees one pair and one snippet and answers "unsure";
+// mention volume and role distribution across the whole name-family are what
+// actually separate Ghislaine Maxwell from her father.
+//
+// Document count is derived by stripping the trailing "_<chunk>" segments from
+// chunk_id (chunkId.js builds them as "<document>_<page>_<n>"), so two mentions
+// in one long filing don't read as two independent corroborations.
+export async function getEntitiesWithEvidence() {
+  const cursor = await db.query(aql`
+    FOR e IN ${entitiesCollection}
+      LET edges = (FOR edge IN ${mentionedInCollection} FILTER edge._from == e._id RETURN edge)
+      LET docs = LENGTH(UNIQUE(edges[*]._to))
+      LET roles = (
+        FOR edge IN edges
+          FILTER edge.role != null AND edge.role != "none"
+          COLLECT role = edge.role WITH COUNT INTO n
+          SORT n DESC LIMIT 4
+          RETURN { role, n }
+      )
+      LET evidence = (
+        FOR edge IN edges
+          FILTER edge.textual_evidence != null
+          LIMIT 2
+          RETURN SUBSTRING(edge.textual_evidence, 0, 100)
+      )
+      RETURN {
+        key: e._key,
+        name: e.name,
+        type: e.type,
+        mentions: LENGTH(edges),
+        documents: docs,
+        roles: roles,
+        evidence: evidence
+      }
+  `);
+  return cursor.all();
+}
+
+// Deterministic _key so the whole pass is idempotent -- re-running Step 7
+// overwrites its own edges instead of duplicating them, which matters because
+// the same pair can legitimately be judged twice (an entity belongs to one
+// cluster per shared token, so "Ghislaine Maxwell"/"Ms. Maxwell" is judged in
+// the "ghislaine" cluster and again in the "maxwell" one).
+//
+// Written in BOTH directions on purpose. Retrieval then reaches every surface
+// form of an entity with a single one-hop traversal from whichever node the
+// query happened to land on, instead of needing to know which member is
+// "canonical" or walking two hops to find a sibling.
+export async function writeSameAsEdge(fromKey, toKey, { token, group, reason }) {
+  await sameAsCollection.save(
+    {
+      _key: `${fromKey}_${toKey}`,
+      _from: `${ARANGO_ENTITIES_COLLECTION}/${fromKey}`,
+      _to: `${ARANGO_ENTITIES_COLLECTION}/${toKey}`,
+      cluster_token: token,
+      cluster_group: group,
+      reason,
+      linked_at: new Date().toISOString(),
+    },
+    { overwriteMode: "replace" }
+  );
 }

@@ -55,9 +55,17 @@ export async function getRawExtraction(chunkId) {
 // since the dedup batch runner needs the whole document (entities array,
 // docket_numbers/dates) to work with, not just a yes/no.
 export async function getUnprocessedForDedup() {
+  // SORT is not cosmetic. Without it ArangoDB returns documents in
+  // storage order, which is arbitrary and changes as documents are updated --
+  // so two runs over "the first 200 unprocessed chunks" get two *different*
+  // 200 chunks. That silently invalidated a parallelism benchmark: the two
+  // arms drew slices containing 570 and 1079 entities respectively, making
+  // their wall-clock times incomparable. Sorting by _key makes any limited
+  // run reproducible, which matters for benchmarking and for resuming.
   const cursor = await db.query(aql`
     FOR d IN ${collection}
       FILTER d.dedup_processed != true
+      SORT d._key
       RETURN d
   `);
   return cursor.all();

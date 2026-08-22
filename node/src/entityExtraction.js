@@ -36,8 +36,14 @@ const DATE_PATTERN =
 // a citation/reference rather than a real participant -- checked
 // independently of what type the LLM assigned, since E.1 showed the model's
 // own "reference" tagging isn't 100% self-consistent across runs.
+// The last two alternatives were added 2026-08-20: the full-corpus audit found
+// "Case 1:15-cv-07433-LAP" living as a *court* node with 71 mentions and the
+// Bates stamp "GIUFFRE000046" as a *person* with 14. Both are paperwork
+// identifiers wearing a party's name, and both slipped past the prompt -- which
+// is exactly why this regex exists as an independent second layer rather than
+// trusting the model's own "reference" tagging.
 const REFERENCE_SIGNAL_PATTERN =
-  /\bv\.\s|\bWL\s+\d|\bF\.\s?(2d|3d|Supp)|\bDep\.\s?Tr\.|\bDecl\.|\bExhibit\b|\bDE\s+\d|\bDocument\s+\d/i;
+  /\bv\.\s|\bWL\s+\d|\bF\.\s?(2d|3d|Supp)|\bDep\.\s?Tr\.|\bDecl\.|\bExhibit\b|\bDE\s+\d|\bDocument\s+\d|\bCase\s+\d+:\d+-[a-z]{2}-|[A-Z]{3,}\d{4,}/i;
 
 function extractDeterministic(chunkText) {
   return {
@@ -57,7 +63,28 @@ const ENTITY_SCHEMA = {
         type: "object",
         properties: {
           name: { type: "string" },
-          type: { type: "string", enum: ["person", "organization", "court", "reference"] },
+          // "location" and "facility" added 2026-08-20 after a full-corpus
+          // audit. With only person/organization/court available, every place
+          // was forced into a wrong box: "State of Florida" (17 mentions),
+          // "New York" (14), "Palm Beach County" (9) all landed as *court*,
+          // because courts are named after jurisdictions; street addresses and
+          // even "2004 black Chevy Suburban" landed as *organization*. Worse,
+          // 68 names ended up carrying two or three different types across
+          // chunks, and since type is a hard partition in every downstream
+          // step (getEntitiesByType, searchSimilarMentions, buildClusters),
+          // those names can never be merged by any pass. The enum is a lens:
+          // what it does not name, it distorts.
+          //
+          // GPE and LOC are deliberately merged into one "location" rather
+          // than split OntoNotes-style. The political-actor-vs-geography
+          // distinction almost never changes an answer for this corpus, and
+          // every extra box is another chance the model picks a different one
+          // for the same name in a different chunk -- which is the exact
+          // failure being fixed here.
+          type: {
+            type: "string",
+            enum: ["person", "organization", "court", "location", "facility", "reference"],
+          },
           candidate_role: {
             type: "string",
             enum: ["plaintiff", "defendant", "counsel", "judge", "witness", "non_party", "other", "none"],
@@ -73,14 +100,35 @@ const ENTITY_SCHEMA = {
 };
 
 const SYSTEM_PROMPT = `You extract entities from a single chunk of a US federal court filing for a knowledge graph. \
-Extract only people, organizations, and courts that are actual participants or facts of THIS case. \
-Do NOT extract dates or docket/case numbers -- those are handled separately by code, not you.
+Extract only people, organizations, courts, locations and facilities that are actual participants or \
+facts of THIS case. Do NOT extract dates or docket/case numbers -- those are handled separately by \
+code, not you.
+
+Type definitions, in the order you should check them:
+- "court": a judicial body that hears cases ("Southern District of New York", "New York Court of \
+Appeals"). A court is an institution, NOT the place it is named after.
+- "location": a geographic or political place -- a state, county, city, country, island or region \
+("Florida", "New York", "Palm Beach County", "United States Virgin Islands"). If a name is a place \
+that a court happens to be named after, it is a "location", not a "court".
+- "facility": a building, property, premises, named residence, school building, airport, or a \
+street address ("Palm Beach mansion", "Northcliffe House", "280 Sunset Avenue Palm Beach, FL 33480").
+- "organization": a company, agency, department, firm, publication, university or other body of \
+people ("Palm Beach Police Department", "The New York Times", "University of Utah"). A police \
+department is an organization, not a location and not a court.
+- "person": an individual human being.
+
+A generic party or role phrase used in place of a name -- "Defendant", "Plaintiff", "defense \
+counsel" -- refers to an individual human being in this case and must ALWAYS be typed "person", \
+never "organization". ("the Court" is an exception: that one denotes the institution, type it \
+"court".)
 
 Use type "reference" for anything that is a citation to a DIFFERENT lawsuit, or a citation/pointer \
 to another document, exhibit, deposition transcript, or declaration filed in this case (e.g. \
 "McCawley Decl. at Exhibit 4", "Alessi Dep. Tr. at 223:5", "DE 338", "Document 1328-31"). \
-Entries typed "reference" are discarded automatically -- when in doubt between a real entity type \
-and "reference", prefer "reference".
+Also use "reference" for a case caption or number ("Case 1:15-cv-07433-LAP") and for a document \
+production identifier or Bates stamp ("GIUFFRE000046") -- these identify paperwork, never a person \
+or a court, no matter whose name they contain. Entries typed "reference" are discarded \
+automatically -- when in doubt between a real entity type and "reference", prefer "reference".
 
 For candidate_role: only set it to something other than "none" when the role word appears \
 DIRECTLY adjacent to the name in the text itself (e.g. "JOHN SMITH, Defendant" or "Plaintiff Jane \
@@ -120,6 +168,39 @@ const FEW_SHOT_ASSISTANT = JSON.stringify({
 // why this two-layer approach (schema type + independent regex) is needed.
 function filterNoiseEntities(entities) {
   return entities.filter((e) => e.type !== "reference" && !REFERENCE_SIGNAL_PATTERN.test(e.name) && !REFERENCE_SIGNAL_PATTERN.test(e.textual_evidence));
+}
+
+// A bare party/role phrase stands in for an individual human being, so it must
+// be typed "person" -- otherwise "Defendant" splits across person and
+// organization nodes that can never merge, since those two types sit in
+// different comparable-type groups. The full-corpus audit found 280
+// organization + 38 person mentions of "Defendant" and 99 + 88 of "Plaintiff".
+//
+// The prompt already says this explicitly, and the model still doesn't comply:
+// the 200-chunk trial with the instruction in place returned "Defendant" as
+// organization 26 times and person only 14. Third time in this project that a
+// prompt instruction alone proved unreliable (see the entity-ID echoing fix in
+// dedupJudgment.js and the "reference" regex above), and the same answer
+// applies -- verify deterministically what a cheap check can verify.
+//
+// Matched on the WHOLE name, never as a substring. "Defendant Maxwell" is a
+// named person and is left alone; only a name that is nothing but a role
+// phrase is rewritten. "the court"/"this court" are deliberately absent: those
+// genuinely denote the institution, and the model's insistence on typing them
+// "court" is defensible.
+const ROLE_PHRASES = new Set([
+  "defendant", "defendants", "the defendant", "the defendants",
+  "plaintiff", "plaintiffs", "the plaintiff", "the plaintiffs",
+  "counsel", "defense counsel", "opposing counsel",
+  "plaintiff's counsel", "defendant's counsel",
+  "witness", "the witness", "petitioner", "respondent", "movant", "deponent",
+]);
+
+export function normalizeRolePhraseTypes(entities) {
+  return entities.map((e) => {
+    const bare = e.name.trim().toLowerCase().replace(/[.,;:]+$/, "").replace(/\s+/g, " ");
+    return ROLE_PHRASES.has(bare) && e.type !== "person" ? { ...e, type: "person" } : e;
+  });
 }
 
 async function callOllamaChat(chunkText, numPredict) {
@@ -166,7 +247,7 @@ async function extractEntitiesLLM(chunkText) {
     const content = await callOllamaChat(chunkText, numPredict);
     try {
       const parsed = JSON.parse(content);
-      return filterNoiseEntities(parsed.entities);
+      return normalizeRolePhraseTypes(filterNoiseEntities(parsed.entities));
     } catch (err) {
       lastError = new Error(`Model output was not valid JSON at num_predict=${numPredict} (likely truncated): ${err.message}\nRaw content: ${content}`);
     }

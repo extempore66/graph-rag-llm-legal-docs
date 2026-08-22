@@ -21,12 +21,26 @@ import { SNIPPET_WINDOW_WORDS, JARO_WINKLER_THRESHOLD } from "./config.js";
 // appears multiple times, but this only feeds a candidate *shortlist*, not
 // a merge decision, so an occasionally-wrong snippet costs a slightly
 // weaker candidate list, not a wrong merge (Step 5 still has to agree).
+// Case-insensitive on purpose. indexOf is case-SENSITIVE, which on this corpus
+// is the same trap as the jaro-winkler default: court captions and deposition
+// transcripts are full of ALL-CAPS names, so "Southern District of New York"
+// failed to match the "SOUTHERN DISTRICT OF NEW YORK" sitting right there in
+// the chunk. Measured before the fix: 7.5% of mentions could not be located at
+// all, and 42% of those were recoverable on case alone (~560 mentions
+// corpus-wide). An unlocatable mention gets no je_entity_mentions vector row,
+// so it can never be found by the embedding channel -- a silent recall loss.
+// Found by a sweep for the whole class after the jaro-winkler fix, which is
+// what should have happened the first time.
 export function locateMentionInText(chunkText, entity) {
   const needles = [entity.textual_evidence, entity.name].filter(Boolean);
+  const haystack = chunkText.toLowerCase();
   for (const needle of needles) {
-    const index = chunkText.indexOf(needle);
+    const index = haystack.indexOf(needle.toLowerCase());
     if (index !== -1) {
-      return { index, matchedText: needle };
+      // Slice from the ORIGINAL text, not the lowered copy, so the snippet
+      // keeps its real casing. Offsets are identical: toLowerCase() is
+      // length-preserving for this corpus's Latin-script text.
+      return { index, matchedText: chunkText.slice(index, index + needle.length) };
     }
   }
   return null;
@@ -53,11 +67,44 @@ export function buildSnippet(chunkText, index, matchedText, windowWords = SNIPPE
 // also produce spurious matches when a generic role-phrase like "defense
 // counsel" gets used as a placeholder name for two different real people --
 // expected, not a bug, Step 5 is what tells them apart.
+// Sorting by score before the cap is load-bearing, not tidiness. The first
+// full-corpus run capped an *unsorted* filtered list, which silently returned
+// an arbitrary 5 of everything above the threshold rather than the best 5 --
+// and on a corpus this dense with honorific names ("Mr. Barton", "Mr. Boies",
+// "Mr. Gow"), 80-130 names clear 0.85 for a single probe, so the exact 1.000
+// self-match was routinely crowded out by weaker partial matches. Step 5 then
+// saw five wrong people, correctly judged them all "different", and Step 6
+// created yet another node -- 38 separate "Mr. Barton" nodes by the end of the
+// run, 9.6% of all entities redundant. Failed in the safe direction (missed
+// merges, never false merges) but fragmented the graph badly. Note this scales
+// with entity count, which is why a 200-chunk test run did not surface it: at
+// ~220 entities few names cleared the threshold and the true match usually
+// landed inside the arbitrary 5 anyway.
+//
+// caseSensitive:false is likewise load-bearing. The jaro-winkler package
+// defaults to case-SENSITIVE comparison, which on this corpus is close to
+// worst-case: court captions and deposition transcripts are full of ALL-CAPS
+// names, so "SOUTHERN DISTRICT OF NEW YORK" vs "Southern District of New York"
+// scored 0.517 -- nowhere near the 0.85 threshold -- and the two never became
+// candidates for each other at all. The first post-sort-fix full run left 110
+// nodes (5.6% of the graph) redundant purely on case, plus 35 of the 240
+// possible-duplicate flags were pairs whose names are case-insensitively
+// identical, which only reached Step 5 because the embedding channel happened
+// to surface them. Same failure family as the unsorted slice above: a library
+// default silently suppressing true matches. With the flag, those pairs score
+// 1.000. Note this does NOT address honorific coreference ("Jeffrey Epstein"
+// vs "Mr. Epstein" is 0.695 either way) -- that's a separate problem.
 async function jaroWinklerCandidates(entity) {
   const existing = await getEntitiesByType(entity.type);
   return existing
-    .map((e) => ({ entity_id: e._key, name: e.name, source: "jaro_winkler" }))
-    .filter((c) => jaroWinkler(entity.name, c.name) >= JARO_WINKLER_THRESHOLD)
+    .map((e) => ({
+      entity_id: e._key,
+      name: e.name,
+      source: "jaro_winkler",
+      score: jaroWinkler(entity.name, e.name, { caseSensitive: false }),
+    }))
+    .filter((c) => c.score >= JARO_WINKLER_THRESHOLD)
+    .sort((a, b) => b.score - a.score)
     .slice(0, 5);
 }
 

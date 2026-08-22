@@ -15,10 +15,45 @@ export function looksGeneric(name) {
   return !name || GENERIC_NAME_PATTERN.test(name);
 }
 
+// Structural filler words. Kept as its own set because initials() below
+// depends on exactly these and nothing more -- widening it would change how
+// acronyms resolve, which is a separate concern from token overlap.
 const STOPWORDS = new Set(["of", "the", "and", "for"]);
 
-function tokenize(name) {
-  return new Set(name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+// Words that appear in a name without contributing any identity: titles,
+// honorifics, ranks, and corporate/legal suffixes. These are stripped before
+// token comparison because sharing one of them means nothing -- the first
+// full-corpus run flagged "Peter Guirguis, Esq." as a possible duplicate of
+// "Bradley Edwards, ESQ." on the strength of the shared token "esq" alone.
+// The structural words are included here too, for the same reason: without
+// them, every "X of Y" name shares a token with every other one.
+const NON_IDENTIFYING_TOKENS = new Set([
+  ...STOPWORDS,
+  "in", "at", "on", "a", "an",
+  // titles / honorifics / ranks
+  "mr", "mrs", "ms", "miss", "dr", "prof", "professor", "hon", "honorable",
+  "judge", "justice", "magistrate", "esq", "esquire", "sir", "madam",
+  "det", "detective", "sgt", "sergeant", "lt", "lieutenant", "capt", "captain",
+  "officer", "agent", "deputy", "chief", "attorney", "counsel",
+  // corporate / legal suffixes
+  "inc", "llc", "llp", "lp", "pc", "pa", "plc", "co", "corp", "corporation",
+  "ltd", "company", "group", "associates", "partners",
+  // court-name scaffolding
+  "court", "courts", "district", "circuit", "division", "county", "cnty",
+  "state", "united", "states", "us", "usa", "judicial",
+]);
+
+// Splits a name into its identity-bearing lowercase word tokens. A name made
+// up entirely of non-identifying tokens (bare "Court", "Mr.") yields an empty
+// set, which makes sharesToken correctly return false rather than matching it
+// against everything -- that shape is noise, not an entity.
+export function tokenize(name) {
+  return new Set(
+    name
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t && !NON_IDENTIFYING_TOKENS.has(t))
+  );
 }
 
 function sharesToken(nameA, nameB) {
