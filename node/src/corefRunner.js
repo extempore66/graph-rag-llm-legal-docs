@@ -15,7 +15,8 @@
 // stays auditable instead of baked in. Retrieval resolves the family with a
 // one-hop traversal at query time.
 //
-// Usage: node --env-file=.env src/corefRunner.js [maxClusters]
+// Usage: node --env-file=.env src/corefRunner.js [maxClusters] [--type <group>]
+//   --type person   restrict to person clusters (see the type-filter note in main)
 
 import fs from "node:fs";
 import path from "node:path";
@@ -147,12 +148,45 @@ async function processCluster(cluster, index, total) {
   }
 }
 
+// Named flag lookup; the cluster limit stays positional so existing
+// invocations ("corefRunner.js 10") keep working unchanged.
+function arg(name) {
+  const i = process.argv.indexOf(`--${name}`);
+  return i === -1 ? null : process.argv[i + 1];
+}
+
 async function main() {
-  const maxClusters = process.argv[2] ? parseInt(process.argv[2], 10) : Infinity;
+  const positional = process.argv.slice(2).find((a) => /^\d+$/.test(a));
+  const maxClusters = positional ? parseInt(positional, 10) : Infinity;
+  const typeFilter = arg("type");
 
   await ensureEntitiesCollections();
   const entities = await getEntitiesWithEvidence();
-  const allClusters = buildClusters(entities);
+  let allClusters = buildClusters(entities);
+
+  // Type filter -- required, not cosmetic. The guard's subset rule
+  // (tokensConflict: A's tokens being a subset of B's reads as "same name,
+  // elaborated") is correct for people and inverted for places and
+  // organizations. "Epstein" IS "Jeffrey Epstein" shortened; "New York Post"
+  // is NOT "New York" elaborated, it is a newspaper named after the place.
+  // Measured on a 10-cluster run over court+organization+location+facility:
+  // 14 edges written, 11 of them wrong, including two distinct agencies
+  // ("Palm Beach County State Attorney's Office" / "...Sheriff's Office")
+  // merged after "county", "state" and "attorney" were stripped as
+  // non-identifying, deleting exactly the tokens that told them apart.
+  // The same run over person clusters produced zero false merges.
+  // Until the subset rule is made type-aware, run this step with
+  // --type person.
+  if (typeFilter) {
+    const before = allClusters.length;
+    allClusters = allClusters.filter((c) => c.type === typeFilter);
+    console.log(`type filter "${typeFilter}": ${allClusters.length} of ${before} clusters`);
+    if (allClusters.length === 0) {
+      const seen = [...new Set(buildClusters(entities).map((c) => c.type))];
+      console.log(`no clusters of that type. Available: ${seen.join(", ")}`);
+      return;
+    }
+  }
 
   // Largest first: the big name-families are where the retrieval value is, so a
   // limited run (used for testing) exercises the interesting cases rather than

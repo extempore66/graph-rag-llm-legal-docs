@@ -169,3 +169,83 @@ export function comparableTypes(type) {
   const group = TYPE_GROUPS.find((g) => g.includes(type));
   return group ?? [type];
 }
+
+// Step 8 / retrieval comparison. How many chunks a retrieval strategy puts in
+// front of the answer model. 8 x 350 words is roughly 2,800 words of context,
+// which sits comfortably inside qwen3:8b's window alongside the prompt and
+// still leaves room for the answer. Held identical across strategies on
+// purpose: giving one retriever a bigger budget than the other would measure
+// context length, not retrieval quality.
+export const RETRIEVAL_TOP_K = process.env.RETRIEVAL_TOP_K
+  ? parseInt(process.env.RETRIEVAL_TOP_K, 10)
+  : 8;
+
+// Upper bound on answer length. Generous enough for the aggregation questions
+// ("list every organization associated with X") that Graph RAG is expected to
+// win on, since truncating those would penalize the strategy for succeeding.
+export const ANSWER_MAX_TOKENS = process.env.ANSWER_MAX_TOKENS
+  ? parseInt(process.env.ANSWER_MAX_TOKENS, 10)
+  : 1200;
+
+// The model that turns retrieved context into an answer. Separate from
+// EXTRACTION_MODEL on purpose: qwen3:8b was chosen by measured side-by-side
+// testing, but for *entity extraction from a chunk*, which is a different job
+// from *answering a question over retrieved passages*. Reusing it here was an
+// inherited default, never a measured one. Defaults to the same model so
+// nothing changes silently, but is now switchable for the naive-vs-graph eval
+// (deepseek-r1:14b and :32b are both installed locally).
+export const ANSWER_MODEL = process.env.ANSWER_MODEL || EXTRACTION_MODEL;
+
+// Instruction prefix prepended to a QUERY (never to a passage) before
+// embedding. BAAI documents this for bge-*-en-v1.5 asymmetric retrieval --
+// passages embedded bare, short queries carrying the instruction -- and it was
+// added here on that documentation alone, without testing.
+//
+// Measured on this corpus, it HURTS. For "What is the obiter dicta in this
+// case?", the oral-argument transcript that actually answers it ranks #22 of
+// 3,338 without the prefix and #80 with it -- a 4x degradation that pushes the
+// right document out of any plausible retrieval window.
+//
+// Defaults to empty (off) rather than being deleted, because one query is one
+// data point and the eval should settle it across a full question set. Set
+// BGE_QUERY_PREFIX="Represent this sentence for searching relevant passages: "
+// to A/B it.
+export const BGE_QUERY_PREFIX = process.env.BGE_QUERY_PREFIX ?? "";
+
+// Hybrid retrieval (see retrieval/hybridRetriever.js). Three cheap channels run
+// in parallel over the whole corpus and are rank-fused, rather than one scorer
+// trying to serve every question shape.
+//
+// Measured motivation: no single ranking wins both query types. Ranking the
+// document that answers each question --
+//        strategy              "obiter dicta"   "Alfredo Rodriguez"
+//        best chunk                 #14                #3
+//        density in top-100          #2               #12
+// -- they are inversely correlated, because a conceptual question is answered
+// by a document's overall character and a specific question by one passage.
+
+// How deep each channel looks before fusion. Wider than RETRIEVAL_TOP_K on
+// purpose: a channel has to be able to surface something the others rank badly,
+// which is the entire point of running more than one.
+export const CHANNEL_POOL = process.env.CHANNEL_POOL
+  ? parseInt(process.env.CHANNEL_POOL, 10)
+  : 50;
+
+// Chunk pool the density channel counts within. 100 was where the split above
+// was measured; it is a pool size, not a tuned threshold -- density is a
+// relative count, so the exact number moves results far less than a distance
+// cutoff would.
+export const DENSITY_POOL = process.env.DENSITY_POOL
+  ? parseInt(process.env.DENSITY_POOL, 10)
+  : 100;
+
+// Reciprocal Rank Fusion constant. 60 is the value from the original RRF paper
+// and the de-facto default; it damps the top of each channel's list so one
+// channel's #1 cannot single-handedly dominate the fused order.
+export const RRF_K = process.env.RRF_K ? parseInt(process.env.RRF_K, 10) : 60;
+
+// Whether hybrid retrieval spends an LLM call expanding the query before the
+// lexical channel runs. On by default: the lexical channel is close to useless
+// without it (a question rarely shares wording with the passage that answers
+// it), and it is one local call per question.
+export const USE_QUERY_EXPANSION = process.env.USE_QUERY_EXPANSION !== "false";

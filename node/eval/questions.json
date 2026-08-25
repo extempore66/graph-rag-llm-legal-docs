@@ -1,0 +1,385 @@
+{
+  "_meta": {
+    "purpose": "Stratified evaluation set for comparing retrieval strategies over the Giuffre v. Maxwell filing corpus (179 documents, 3,338 chunks).",
+    "drafted": "2026-08-22",
+    "rules": [
+      "PRE-REGISTERED: predicted_winner is frozen BEFORE any strategy runs. It is a hypothesis, and being wrong about it is a result, not an embarrassment.",
+      "Gold answers must be verified by a human against the source PDFs. Answers derived from the graph or from an LLM's reading would grade both systems against one system's understanding.",
+      "Strategies compared: naive (vector only), hybrid (vector + document-density + lexical, rank-fused), graph (entity-anchored traversal, not yet built). All share answerGenerator.js, the same corpus, the same embedder and the same slot budget (RETRIEVAL_TOP_K).",
+      "Scored per question: retrieved_target_document (objective), answered_from_context (self-reported, currently unreliable - see known_defects), citation_precision (objective once abstention works), and human correctness."
+    ],
+    "known_defects_at_drafting": [
+      "Abstention is broken: qwen3:8b and deepseek-r1:14b both return answered_from_context=true and cite 8 of 8 sources on every question tested, including questions the corpus cannot answer. Three structural fixes failed (instruction, schema field ordering, pinned per-source verdicts). Until resolved, the abstention stratum measures a known-failing component -- which is precisely why it is in the set.",
+      "Query expansion was validated only after its prompt example was decontaminated; expansion quality on unseen questions is now confirmed but its downstream value is not.",
+      "Hybrid's channel weighting is untuned. Reserved slots guarantee it is never worse than naive, but the fusion split was set by hand, not measured. This set is the instrument for tuning it."
+    ],
+    "strata": {
+      "single_fact": "Answer sits in one passage. Vector search should find it. Tests baseline competence.",
+      "verbatim_nuance": "Requires exact wording or a specific exchange. Graph abstraction discards this by design.",
+      "multi_hop": "Requires connecting two or more entities across documents.",
+      "aggregation": "Requires collecting many instances scattered across the corpus.",
+      "entity_resolution": "Requires knowing that different surface forms are one entity.",
+      "completeness_counting": "Requires knowing the full set, not a sample. Vector top-k structurally cannot do this.",
+      "absence_abstention": "The corpus does not contain the answer. Correct behaviour is to say so. Tests honesty, not retrieval."
+    },
+    "sanity_check": {
+      "run": "2026-08-22",
+      "method": "Deterministic regex scan of all 3,338 chunks. No LLM involved.",
+      "presence_checks": "11/11 passed -- every question asserted to be answerable has supporting text in the corpus (SF-03 SF-04 SF-05 VN-01 VN-02 VN-03 VN-04 VN-05 ER-05 AB-05).",
+      "absence_checks": "AB-02 and AB-05 clean. AB-03 has one informative near-miss (grand jury true bill). AB-04 FAILED and was rewritten.",
+      "caveat": "A presence check proves the supporting text EXISTS. It does not prove the drafted gold answer is correct, and it does not prove a strategy can retrieve it. Human verification against the source PDFs is still required for every gold_answer."
+    }
+  },
+  "questions": [
+    {
+      "id": "SF-01",
+      "stratum": "single_fact",
+      "question": "Who is Alfredo Rodriguez and what was his role in relation to Jeffrey Epstein?",
+      "predicted_winner": "tie",
+      "why": "Named entity with a dedicated deposition; vector search already retrieves it at rank 3.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Baseline sanity check. If any strategy fails this, something is broken."
+    },
+    {
+      "id": "SF-02",
+      "stratum": "single_fact",
+      "question": "What is the docket number of Giuffre v. Maxwell?",
+      "predicted_winner": "tie",
+      "why": "Appears in nearly every caption.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Observed as 15-cv-07433 with judge initials LAP and RWS in different filings -- worth confirming which is correct for which period."
+    },
+    {
+      "id": "SF-03",
+      "stratum": "single_fact",
+      "question": "Which judge signed the January 2024 order directing counsel to strike and re-file documents containing personally identifiable information?",
+      "predicted_winner": "naive",
+      "why": "One page, distinctive wording, no entity traversal needed.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Believed to be Loretta A. Preska in 1324.0. VERIFY."
+    },
+    {
+      "id": "SF-04",
+      "stratum": "single_fact",
+      "question": "What law firm does Sigrid McCawley practise at, and at what address?",
+      "predicted_winner": "tie",
+      "why": "Appears in signature blocks and subpoena footers.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Boies Schiller Flexner, 401 E. Las Olas Blvd, Ft. Lauderdale seen in 1328.35. VERIFY."
+    },
+    {
+      "id": "SF-05",
+      "stratum": "single_fact",
+      "question": "On what date was Ghislaine Maxwell ordered to sit for a further deposition?",
+      "predicted_winner": "naive",
+      "why": "Specific date tied to a specific order.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "A June 20, 2016 order resolving eight discovery motions is referenced in 1325.7_1. VERIFY whether that is the right order."
+    },
+    {
+      "id": "VN-01",
+      "stratum": "verbatim_nuance",
+      "question": "What exact objection did Ms. Menninger make when Rodriguez was asked about David Copperfield?",
+      "predicted_winner": "naive",
+      "why": "Needs the literal transcript exchange; a graph stores that an objection happened, not its wording.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Exchange appears in 1328.44_2 around p.17 -- 'objection to form, lack of foundation'. VERIFY exact wording; the page has OCR damage."
+    },
+    {
+      "id": "VN-02",
+      "stratum": "verbatim_nuance",
+      "question": "What reason did the deponent give on the errata sheet for changing an answer to 'Yes, assuming South America is considered overseas'?",
+      "predicted_winner": "naive",
+      "why": "Verbatim errata text; no entity relationship involved.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "1335.3_1 p.~220, heavily OCR-degraded ('Misundt-rstood the quc-stion'). Deliberately included: tests behaviour on damaged text."
+    },
+    {
+      "id": "VN-03",
+      "stratum": "verbatim_nuance",
+      "question": "What did the plaintiff's counsel say about the relationship between going with the facts and the law being opposed to you?",
+      "predicted_winner": "naive",
+      "why": "A distinctive rhetorical line in oral argument.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "1332.10 p.41 -- 'if the law is opposed to you, go with the facts'. VERIFY attribution: which side said it."
+    },
+    {
+      "id": "VN-04",
+      "stratum": "verbatim_nuance",
+      "question": "How did Josh Bunner describe what he heard, in his own words, during the police interview?",
+      "predicted_winner": "naive",
+      "why": "Quoted speech inside a police narrative.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "1328.22_1 -- quoted as 'AT NO POINT DID I HEAR NO'. All-caps police report; also tests case-insensitive handling."
+    },
+    {
+      "id": "VN-05",
+      "stratum": "verbatim_nuance",
+      "question": "What are the 'Omen factors' and which case adopted them?",
+      "predicted_winner": "naive",
+      "why": "Doctrinal detail stated once in oral argument.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "1332.10 p.30 -- Steinhilber adopted four factors from the D.C. Circuit Omen case. VERIFY."
+    },
+    {
+      "id": "MH-01",
+      "stratum": "multi_hop",
+      "question": "Which attorneys appear in filings that also mention Sarah Ransome?",
+      "predicted_winner": "graph",
+      "why": "Requires joining an entity to documents and then to other entities in those documents.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Ransome appears in 1334.1 and 1331.34. Expect naive to return Ransome passages without enumerating attorneys."
+    },
+    {
+      "id": "MH-02",
+      "stratum": "multi_hop",
+      "question": "Which people are mentioned in both the Palm Beach police investigation documents and the deposition transcripts?",
+      "predicted_winner": "graph",
+      "why": "Set intersection across document types -- exactly what mentioned_in edges are for.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Police material in 1326.1_2, 1328.21, 1328.22_1. Hard to verify exhaustively; accept a spot-check of 3-5 names."
+    },
+    {
+      "id": "MH-03",
+      "stratum": "multi_hop",
+      "question": "Which law firms represented parties who filed motions to compel in this case?",
+      "predicted_winner": "graph",
+      "why": "Two hops: motion -> filing party -> firm.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": ""
+    },
+    {
+      "id": "MH-04",
+      "stratum": "multi_hop",
+      "question": "Who else was deposed in the same proceedings as Alfredo Rodriguez?",
+      "predicted_winner": "graph",
+      "why": "Requires knowing which documents are depositions and who appears across them.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": ""
+    },
+    {
+      "id": "MH-05",
+      "stratum": "multi_hop",
+      "question": "Which individuals named in the defence's proposed search-term list also appear as deponents or witnesses elsewhere in the corpus?",
+      "predicted_winner": "graph",
+      "why": "The search-term list is a dense name roster; joining it to actual mentions is pure graph work.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Search-term lists in 1327.2, 1327.13, 1327.18_1 -- roughly 330 numbered terms. Verification burden is high; sample 5."
+    },
+    {
+      "id": "AG-01",
+      "stratum": "aggregation",
+      "question": "List every organization associated with Bradley J. Edwards in this corpus.",
+      "predicted_winner": "graph",
+      "why": "Collecting all edges from one entity is the graph's native operation.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Farmer Jaffe Weissing Edwards Fistos & Lehrman seen in 1328.35. Others likely."
+    },
+    {
+      "id": "AG-02",
+      "stratum": "aggregation",
+      "question": "What are all the locations associated with Jeffrey Epstein in these filings?",
+      "predicted_winner": "graph",
+      "why": "Scattered across many documents; vector top-8 can only sample.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Expect Palm Beach, New York, Little St. James, New Mexico. VERIFY against actual mentions, not general knowledge."
+    },
+    {
+      "id": "AG-03",
+      "stratum": "aggregation",
+      "question": "Which courts appear in this corpus?",
+      "predicted_winner": "graph",
+      "why": "Requires the full set of court-typed entities.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "S.D.N.Y. and S.D. Fla. observed; also High Court of Justice, Queen's Bench Division in 1331.25."
+    },
+    {
+      "id": "AG-04",
+      "stratum": "aggregation",
+      "question": "List all attorneys who signed filings on behalf of the defendant.",
+      "predicted_winner": "graph",
+      "why": "Role-scoped aggregation across many signature blocks.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Menninger, Critton observed. VERIFY completeness."
+    },
+    {
+      "id": "AG-05",
+      "stratum": "aggregation",
+      "question": "What categories of documents did the plaintiff withhold on privilege grounds?",
+      "predicted_winner": "hybrid",
+      "why": "Concentrated in privilege logs -- document-density channel should surface the right documents; graph has no node type for a privilege category.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Privilege logs in 1326.3_1, 1326.4_3. Deliberately a case where the graph should NOT win."
+    },
+    {
+      "id": "ER-01",
+      "stratum": "entity_resolution",
+      "question": "How many distinct people named Maxwell are referred to in this corpus, and which is which?",
+      "predicted_winner": "graph",
+      "why": "The pairwise-insufficiency case: 'Ms. Maxwell'/'Maxwell' are the same, 'baron Robert Maxwell'/'Maxwell' are not.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "This question motivated Step 7 coreference. High value."
+    },
+    {
+      "id": "ER-02",
+      "stratum": "entity_resolution",
+      "question": "Under what different names is Virginia Giuffre referred to across these filings?",
+      "predicted_winner": "graph",
+      "why": "Requires je_same_as edges: Giuffre / Virginia Roberts / Ms. Giuffre / Jane Doe.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Whether 'Jane Doe 2' resolves to Giuffre is a real question -- do NOT assume. VERIFY."
+    },
+    {
+      "id": "ER-03",
+      "stratum": "entity_resolution",
+      "question": "Is 'defence counsel' in these filings the same person as Laura A. Menninger?",
+      "predicted_winner": "graph",
+      "why": "Role-phrase to named-person resolution -- the case the embedding channel in Step 4 exists for.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "May be context-dependent; a 'sometimes' answer is legitimate."
+    },
+    {
+      "id": "ER-04",
+      "stratum": "entity_resolution",
+      "question": "How many times is Ghislaine Maxwell referred to in this corpus under any name?",
+      "predicted_winner": "graph",
+      "why": "Counting requires resolution first; naive can only count what one retrieval window shows.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Exact count unverifiable by hand. Score on order of magnitude and on whether variants were unified at all."
+    },
+    {
+      "id": "ER-05",
+      "stratum": "entity_resolution",
+      "question": "Does the corpus refer to the Southern District of New York under more than one spelling or capitalisation?",
+      "predicted_winner": "graph",
+      "why": "The measured case-sensitivity failure: ALL-CAPS captions vs title case cost 110 redundant nodes before the fix.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Directly tests whether the case-insensitivity fixes held."
+    },
+    {
+      "id": "CC-01",
+      "stratum": "completeness_counting",
+      "question": "How many distinct people are identified as attorneys anywhere in this corpus?",
+      "predicted_winner": "graph",
+      "why": "A top-8 window cannot see a corpus-wide count.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Score on plausibility and method, not exactness."
+    },
+    {
+      "id": "CC-02",
+      "stratum": "completeness_counting",
+      "question": "How many separate depositions are represented in this corpus?",
+      "predicted_winner": "graph",
+      "why": "Requires the document-level set, not passages.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "Countable by hand from filenames + first pages. Worth verifying properly."
+    },
+    {
+      "id": "CC-03",
+      "stratum": "completeness_counting",
+      "question": "How many Jane Doe designations appear, and which numbers are used?",
+      "predicted_winner": "hybrid",
+      "why": "Lexically distinctive ('Jane Doe N'), so BM25 should beat both vector and graph.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "GROUND TRUTH (mechanical scan): 13 distinct designations present -- Jane Doe 1, 2, 3, 4, 5, 6, 7, 11, 17, 43, 101, 102, and '43000002' which is an OCR/Bates artifact, not a real designation. My original note claiming only 2, 3 and 6 was wrong. Note also that 1327.11 (dropped from the corpus for being unreadable scans) carried 174 'Jane Doe' watermarks, so the answer differs from what the raw PDF set would give."
+    },
+    {
+      "id": "CC-04",
+      "stratum": "completeness_counting",
+      "question": "How many distinct case numbers appear across these filings?",
+      "predicted_winner": "hybrid",
+      "why": "Highly patterned strings; lexical channel should dominate.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "GROUND TRUTH (mechanical scan): 26 distinct strings match, but the correct ANSWER is smaller and the gap is the point. '15-CV-07433' and '15-CV-7433' are the same case zero-padded differently; '08-CV-8081' looks like an OCR truncation of '08-CV-80811'. So this is a normalisation question wearing a counting question's clothes. My original note listing 5 case numbers was wrong."
+    },
+    {
+      "id": "CC-05",
+      "stratum": "completeness_counting",
+      "question": "Which documents in this corpus are sealed or filed under seal?",
+      "predicted_winner": "hybrid",
+      "why": "'File Under Seal' is a literal recurring string.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "GROUND TRUTH (mechanical scan): 70 documents contain the phrase 'under seal'. Whether all 70 ARE sealed is a different question -- some merely reference sealing."
+    },
+    {
+      "id": "AB-01",
+      "stratum": "absence_abstention",
+      "question": "What is the obiter dicta in this case?",
+      "predicted_winner": "tie",
+      "why": "The originating question. The corpus holds no judicial opinions -- only party filings plus unsealing orders -- so strictly there is no dicta. An oral-argument transcript (1332.10) is the closest thing and is a defensible answer if cited as such.",
+      "gold_answer": null,
+      "verified": false,
+      "notes": "The old ada-002 system retrieved 1332.10 at rank 1 (d=0.171). bge-large ranks it #22 without the query prefix, #80 with it. Keep as the canonical regression test."
+    },
+    {
+      "id": "AB-02",
+      "stratum": "absence_abstention",
+      "question": "What sentence did the court impose on Jeffrey Epstein?",
+      "predicted_winner": "tie",
+      "why": "This is a civil defamation and discovery corpus; no sentencing document is in it.",
+      "gold_answer": "The corpus does not contain sentencing records.",
+      "verified": false,
+      "notes": "Strong abstention test: the model certainly has parametric knowledge and must not use it."
+    },
+    {
+      "id": "AB-03",
+      "stratum": "absence_abstention",
+      "question": "What was the final jury verdict in this case?",
+      "predicted_winner": "tie",
+      "why": "The corpus is pre-trial discovery material; there is no verdict in it.",
+      "gold_answer": "The corpus contains no verdict.",
+      "verified": false,
+      "notes": "Sanity-checked. One near-miss exists and is deliberately kept: 1326.1_2 records that in 2006 a Florida GRAND jury 'returned with a true bill for Felony Solicitation of Prostitution' -- a different proceeding, a different kind of jury, and not a verdict. A system reporting it as this case's verdict has failed in an informative way."
+    },
+    {
+      "id": "AB-04",
+      "stratum": "absence_abstention",
+      "question": "How much did Ghislaine Maxwell pay Virginia Giuffre to settle their dispute?",
+      "predicted_winner": "tie",
+      "why": "Genuinely absent, with a real and very tempting near-miss figure present in the corpus.",
+      "gold_answer": "Not stated in the corpus. A $500,000 settlement IS stated, but it is Giuffre v. Epstein, a different lawsuit.",
+      "verified": false,
+      "notes": "CORRECTED after sanity check. The original wording ('the settlement amount between the parties') was answerable: 1331.7 states 'Plaintiff received a $500,000 settlement payment from Mr. Epstein'. Rewritten to target the Giuffre-Maxwell settlement, which the corpus does not state. The $500,000 Epstein figure is now the trap: a system that reports it has confused two lawsuits. Corpus also contains $50,000,000 and $30,000,000 figures elsewhere."
+    },
+    {
+      "id": "AB-05",
+      "stratum": "absence_abstention",
+      "question": "What did Prince Andrew say in his deposition?",
+      "predicted_winner": "tie",
+      "why": "He is named in search-term lists but there is no deposition of him here. Tests distinguishing 'mentioned' from 'deposed'.",
+      "gold_answer": "No such deposition is in the corpus; the name appears in proposed search terms only.",
+      "verified": false,
+      "notes": "'andrew*' and 'prince*' appear as terms 13 and 14 in the 1327.18_1 search-term list. Best abstention test in the set: the name IS present, just not in the role asked about."
+    }
+  ]
+}
