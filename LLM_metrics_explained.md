@@ -31,7 +31,7 @@ you what to go and change.
 
 ---
 
-## Layer 1 — retrieval, the classical IR metrics
+## Layer 1 — retrieval, the classical IR (Information Retrieval) metrics
 
 Every metric here requires **qrels** (query relevance judgments): a set of
 `(query, document, grade)` triples, binary or graded — TREC conventionally uses
@@ -206,11 +206,11 @@ confabulate? **This is this project's documented failure**, written up in
 
 Three relationships, three edges of a triangle:
 
-| Edge | Question it asks | What it catches |
-|------|------------------|-----------------|
-| question ↔ context | Is the retrieved text relevant? | retrieval failure |
-| context ↔ answer | Is the answer grounded in it? | hallucination |
-| question ↔ answer | Does the answer address the question? | evasion, drift |
+| Edge               | Question it asks                      | What it catches   |
+|--------------------|---------------------------------------|-------------------|
+| question ↔ context | Is the retrieved text relevant?       | retrieval failure |
+| context ↔ answer   | Is the answer grounded in it?         | hallucination     |
+| question ↔ answer  | Does the answer address the question? | evasion, drift    |
 
 If all three are healthy it is very hard for the system to be badly wrong, and
 it's a good diagnostic *order* to walk when something breaks.

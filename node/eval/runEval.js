@@ -18,6 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { retrieveNaive } from "../src/retrieval/naiveRetriever.js";
 import { retrieveHybrid } from "../src/retrieval/hybridRetriever.js";
+import { retrieveGraph } from "../src/retrieval/graphRetriever.js";
 import { generateAnswer } from "../src/retrieval/answerGenerator.js";
 import { ANSWER_MODEL, RETRIEVAL_TOP_K, BGE_QUERY_PREFIX, USE_QUERY_EXPANSION } from "../src/config.js";
 
@@ -29,6 +30,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STRATEGIES = {
   naive: retrieveNaive,
   hybrid: retrieveHybrid,
+  // Added once graphRetriever existed. It was deliberately omitted (not
+  // stubbed) until then, so no row in runs.jsonl ever claimed a graph result
+  // that had not been measured.
+  graph: retrieveGraph,
 };
 
 function arg(name, fallback = null) {
@@ -101,8 +106,17 @@ for (const q of questions) {
           page_start: c.page_start,
           distance: c.distance ?? null,
           channels: c.channels ?? null,
+          // Graph traversal provenance: which resolved entities reached this
+          // chunk. Null for strategies that select by similarity.
+          path: c.path ?? null,
         })),
         documents: [...new Set(chunks.map((c) => short(c.source_file)))],
+        // Set only by the graph strategy: the linked entities, the same_as
+        // families they expanded into, and whether it fell back to vector
+        // because the question named no known entity. Recorded because the
+        // fallback rate is itself a result -- it measures how much of a
+        // question set is entity-shaped.
+        graph_path: chunks.graph_path ?? null,
         // Answer evidence -- correctness still needs a human, everything else does not.
         answer: answer.answer,
         answered_from_context: answer.answered_from_context,

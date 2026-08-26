@@ -1,0 +1,109 @@
+{
+  "_meta": {
+    "purpose": "Ten questions for demonstrating graph retrieval against naive vector RAG to a non-technical audience. Curated from the measured graph, not from intuition.",
+    "drafted": "2026-08-25",
+    "status": "CANDIDATE -- graph_fact values below are verified against the live graph; the predicted outcome for each strategy is NOT yet measured. graphRetriever.js does not exist at time of drafting. Measure before showing any of this to a customer.",
+    "selection_rule": "Each question must (1) be one a real paralegal would actually ask, (2) rest on a graph fact that can be re-derived with a single query, and (3) fail under naive retrieval for a STRUCTURAL reason -- not merely score worse. A question that naive might get right on a good day does not belong here.",
+    "honesty_note": "DEMO-10 is included deliberately as a case naive should win or tie. A comparison in which the new system wins every single question is not credible, and an audience of lawyers will be the first to notice.",
+    "graph_state_at_drafting": {
+      "chunks": 3338, "mentions": 19009, "entities": 2014,
+      "same_as_edges": 488, "review_flags": 413,
+      "roles_unset": 18576,
+      "caveat": "Role data is too sparse to support role-based questions (202 plaintiff, 188 defendant, 5 judge). None are used here."
+    }
+  },
+  "questions": [
+    {
+      "id": "DEMO-01",
+      "question": "How many distinct Jane Doe plaintiffs appear in these filings?",
+      "category": "counting",
+      "graph_fact": "11 distinct Jane Doe entities: Jane Doe 102, Jane Doe 43, Non-Party Jane Doe 43, Jane Does 1 2 3 and 4, Jane Doe No. 101, JANE DOE NO. 5, NO. 6, B.B. JANE DOE NO. 7, and others.",
+      "why_naive_fails": "STRUCTURAL. Vector retrieval returns a fixed k passages ranked by similarity. It has no mechanism to enumerate or count distinct entities -- k=8 returns 8 chunks whether the true answer is 3 or 30. Counting is not a retrieval operation.",
+      "verify": "FOR e IN je_entities FILTER LIKE(LOWER(e.name),'%jane doe%') RETURN e.name",
+      "expected": "graph"
+    },
+    {
+      "id": "DEMO-02",
+      "question": "In how many separate filings does Virginia Giuffre appear?",
+      "category": "counting",
+      "graph_fact": "876 distinct chunks, via a family of 4 linked names (Ms. Giuffre 592, Virginia L. Giuffre 294, Plaintiff Giuffre 3, Ms. Virginia Roberts Giuffre 1) totalling 890 mentions.",
+      "why_naive_fails": "STRUCTURAL, twice over. It cannot count, and it retrieves only whichever surface form is closest to the query embedding -- 'Ms. Giuffre' scores 0.617 against 'Virginia Giuffre' on name similarity, so the largest node in the family is the one most likely to be missed.",
+      "verify": "one-hop je_same_as from Ms. Giuffre, then je_mentioned_in, count distinct _to",
+      "expected": "graph"
+    },
+    {
+      "id": "DEMO-03",
+      "question": "Find every reference to Detective Joseph Recarey.",
+      "category": "name_variant_recall",
+      "graph_fact": "8 linked surface forms: Joseph Recarey (44), RECAREY JOSEPH (22), Detective Joseph Recarey Retired (20), Det. Recarey (4), Mr. Recarey (2), Officer Recarey (2), and further variants.",
+      "why_naive_fails": "STRUCTURAL. Rank/title variation (Det./Officer/Mr./Detective ... Retired) produces surface forms that are semantically near-identical to a human and far apart as strings. This is the single most common entity pattern in police and medical records, which makes it the most transferable item in this set.",
+      "verify": "one-hop je_same_as from any Recarey node",
+      "expected": "graph"
+    },
+    {
+      "id": "DEMO-04",
+      "question": "How many times is Ghislaine Maxwell referred to across the corpus?",
+      "category": "name_variant_recall",
+      "graph_fact": "1,480 mentions across 5 linked forms: Ghislaine Maxwell (534), Ms. Maxwell (451), G Maxwell (337), Maxwell (156), Dr. Ghislaine Maxwell (2).",
+      "why_naive_fails": "STRUCTURAL. 'G Maxwell' -- 337 mentions, the third-largest node -- is an initial-plus-surname form that no embedding reliably places next to the full name, and no count is available regardless.",
+      "verify": "one-hop je_same_as from Ghislaine Maxwell, sum mention counts",
+      "expected": "graph"
+    },
+    {
+      "id": "DEMO-05",
+      "question": "Which filings mention both Ghislaine Maxwell and Jeffrey Epstein?",
+      "category": "co_occurrence",
+      "graph_fact": "200 shared chunks between the two entities.",
+      "why_naive_fails": "STRUCTURAL. A single query vector cannot express conjunction. Embedding 'Maxwell and Epstein' produces one point in space and returns passages similar to that blend -- which is not the same as passages containing both, and cannot be made so by tuning.",
+      "verify": "INTERSECTION of each entity's je_mentioned_in _to sets",
+      "expected": "graph"
+    },
+    {
+      "id": "DEMO-06",
+      "question": "Who appears most frequently alongside Jeffrey Epstein?",
+      "category": "co_occurrence",
+      "graph_fact": "Ranked by shared chunks: Mr. Pagliuca 202, Ghislaine Maxwell 200, G Maxwell 140, Virginia Roberts 133, Ms. Giuffre 133.",
+      "why_naive_fails": "STRUCTURAL. This asks for an aggregate over the whole corpus, not for passages. There is no set of 8 chunks that answers it.",
+      "verify": "co-occurrence query over je_mentioned_in",
+      "expected": "graph",
+      "note": "Mr. Pagliuca ranking first is a defence attorney appearing in filings, not a social association. Worth saying aloud in a demo -- it shows the system reports structure rather than insinuation."
+    },
+    {
+      "id": "DEMO-07",
+      "question": "Is Robert Maxwell the same person as Ghislaine Maxwell?",
+      "category": "disambiguation",
+      "graph_fact": "Separate entities. The deterministic guard blocks the pair: conflicting identity tokens (robert / ghislaine) on both sides.",
+      "why_naive_fails": "STRUCTURAL, and dangerously so. Both names appear in similar contexts, so passages about each rank highly for the other. Naive retrieval has no representation of identity at all -- only of textual similarity, which is exactly what makes a father and daughter sharing a surname look the same.",
+      "verify": "tokensConflict('Ghislaine Maxwell','Robert Maxwell') === true; no je_same_as edge exists",
+      "expected": "graph"
+    },
+    {
+      "id": "DEMO-08",
+      "question": "Are Virginia Roberts and Victoria Roberts the same person?",
+      "category": "disambiguation",
+      "graph_fact": "Separate entities (Virginia Roberts 260 mentions, Victoria Roberts 3). Jaro-Winkler 0.838, just under the 0.85 candidate threshold; held apart at every stage.",
+      "why_naive_fails": "STRUCTURAL. One letter of given name, identical surname, overlapping subject matter. This is the case where similarity-based retrieval is least able to help and most likely to mislead.",
+      "verify": "both present in je_entities with no je_same_as edge between them",
+      "expected": "graph"
+    },
+    {
+      "id": "DEMO-09",
+      "question": "Show every filing where Virginia Giuffre is mentioned, and say which name each filing used for her.",
+      "category": "provenance",
+      "graph_fact": "876 chunks reachable, each edge carrying the surface form and the textual evidence that produced it.",
+      "why_naive_fails": "STRUCTURAL. Naive retrieval can show which chunks it returned. It cannot show why those and not others, cannot show what it did not return, and has no record that four different names denote one person. The traversal path IS the audit trail -- which is the part that matters in a legal setting.",
+      "verify": "traverse je_same_as then je_mentioned_in, read surface form off each edge",
+      "expected": "graph"
+    },
+    {
+      "id": "DEMO-10",
+      "question": "What reason did the court give for sealing the documents?",
+      "category": "negative_control",
+      "graph_fact": "None applicable. This asks about reasoning expressed in prose, not about entities or their relationships.",
+      "why_naive_fails": "It does not. Naive vector retrieval should win or tie here, and graph traversal has no advantage -- there is no entity to anchor on. INCLUDED ON PURPOSE.",
+      "verify": "n/a -- judged on answer quality",
+      "expected": "naive_or_tie",
+      "note": "The credibility of DEMO-01..09 depends on this one being in the set and being reported honestly. Do not drop it if it is inconvenient."
+    }
+  ]
+}
