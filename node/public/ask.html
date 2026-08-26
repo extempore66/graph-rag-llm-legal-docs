@@ -95,19 +95,39 @@ form.addEventListener("submit", async (e) => {
 
   askBtn.disabled = true;
   resultsEl.innerHTML = "";
-  statusEl.textContent = `Retrieving and answering (${strategyEl.value})…`;
+  statusEl.textContent = "Retrieving\u2026";
   const started = Date.now();
 
+  // Accumulated across frames: each beat renders as it arrives, and the whole
+  // view is re-rendered from this one object rather than patched in place.
+  const state = { question, strategy: strategyEl.value, sources: [], graph_path: null,
+                  cited_chunk_ids: [], answer: "", phase: "retrieving" };
+
   try {
-    const res = await fetch("/ask", {
+    const res = await fetch("/ask/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, strategy: strategyEl.value }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-    statusEl.textContent = `${((Date.now() - started) / 1000).toFixed(1)}s total — retrieval ${data.retrieval_ms} ms, generation ${data.answer_ms} ms`;
-    render(data);
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+
+    // Newline-delimited JSON. A network chunk can split a line, so the tail of
+    // one read is held back and prepended to the next.
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        applyFrame(state, JSON.parse(line), started);
+      }
+    }
   } catch (err) {
     statusEl.textContent = "";
     resultsEl.innerHTML = `<div class="panel"><span class="badge badge-err">error</span> ${esc(err.message)}</div>`;
@@ -116,24 +136,64 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
+// One frame at a time, re-rendering after each. Deltas arrive many per second,
+// so the answer panel is patched directly rather than rebuilding the whole
+// view on every token.
+function applyFrame(state, f, started) {
+  if (f.type === "retrieval") {
+    Object.assign(state, { sources: f.sources, graph_path: f.graph_path, retrieval_ms: f.retrieval_ms, phase: "judging" });
+    statusEl.textContent = `retrieval ${f.retrieval_ms} ms \u2014 judging whether these passages can answer\u2026`;
+    render(state);
+  } else if (f.type === "verdict") {
+    Object.assign(state, { sufficient: f.sufficient, missing: f.missing,
+      cited_chunk_ids: f.cited_chunk_ids, invalid_citations: f.invalid_citations,
+      verdict_ms: f.verdict_ms, phase: f.sufficient ? "answering" : "refused" });
+    statusEl.textContent = `retrieval ${state.retrieval_ms} ms \u2014 verdict ${f.verdict_ms} ms` +
+      (f.sufficient ? " \u2014 answering\u2026" : " \u2014 insufficient");
+    render(state);
+  } else if (f.type === "delta") {
+    state.answer += f.text;
+    const el = document.getElementById("answerText");
+    if (el) el.textContent = state.answer;
+    else render(state);
+  } else if (f.type === "done") {
+    Object.assign(state, { answer: f.answer, truncated: f.truncated, refused: f.refused, phase: "done" });
+    statusEl.textContent = `${((Date.now() - started) / 1000).toFixed(1)}s total \u2014 retrieval ${state.retrieval_ms} ms, ` +
+      `verdict ${state.verdict_ms ?? 0} ms, answer ${f.answer_ms} ms`;
+    render(state);
+  } else if (f.type === "error") {
+    statusEl.textContent = "";
+    resultsEl.innerHTML = `<div class="panel"><span class="badge badge-err">error</span> ${esc(f.error)}</div>`;
+  }
+}
+
 function render(d) {
   resultsEl.innerHTML = [answerPanel(d), graphPanel(d.graph_path), sourcesTable(d)].filter(Boolean).join("");
 }
 
 function answerPanel(d) {
-  // answered_from_context is the model's own declaration that the passages
-  // contained enough to answer. Shown rather than hidden because a "no" here
-  // is a correct abstention, and correct abstentions are the hardest thing
-  // this system does -- see KNOWN_LIMITATIONS.md.
+  // Nothing to show until the verdict lands -- before that the honest state is
+  // "still judging", not an empty answer box.
+  if (d.phase === "retrieving" || d.phase === "judging") {
+    return `<h2>Answer</h2><div class="panel"><span class="badge badge-plain">${esc(d.strategy)}</span>` +
+      `<span class="badge badge-warn">judging sufficiency\u2026</span></div>`;
+  }
+
+  // A refusal is a correct outcome, not an error, and the hardest thing this
+  // system does -- see KNOWN_LIMITATIONS.md. It gets the same visual weight as
+  // an answer rather than being tucked away.
   const badges = [
-    d.answered_from_context
+    d.sufficient
       ? '<span class="badge badge-ok">answered from context</span>'
       : '<span class="badge badge-warn">not answerable from these passages</span>',
     d.truncated ? '<span class="badge badge-err">truncated</span>' : "",
     d.invalid_citations ? `<span class="badge badge-err">${d.invalid_citations} invalid citation(s)</span>` : "",
     `<span class="badge badge-plain">${esc(d.strategy)}</span>`,
+    d.phase === "answering" ? '<span class="badge badge-plain">writing\u2026</span>' : "",
   ].join("");
-  return `<h2>Answer</h2><div class="panel">${badges}<div class="answer" style="margin-top:.5rem">${esc(d.answer)}</div></div>`;
+
+  return `<h2>Answer</h2><div class="panel">${badges}` +
+    `<div class="answer" id="answerText" style="margin-top:.5rem">${esc(d.answer)}</div></div>`;
 }
 
 function graphPanel(gp) {

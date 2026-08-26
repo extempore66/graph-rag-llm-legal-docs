@@ -196,6 +196,21 @@ export const ANSWER_MAX_TOKENS = process.env.ANSWER_MAX_TOKENS
 // (deepseek-r1:14b and :32b are both installed locally).
 export const ANSWER_MODEL = process.env.ANSWER_MODEL || EXTRACTION_MODEL;
 
+// Context window for answer generation, in tokens.
+//
+// Not a tuning knob -- a bug fix. Ollama's default context for this model is
+// 4096, and it clips silently rather than erroring. Measured 2026-08-27: a k=8
+// answer prompt is 4,235 tokens, so `prompt_eval_count` came back as exactly
+// 4096 on every call and the tail of the last source was being dropped before
+// the model ever saw it. Confirmed by re-running the identical prompt with
+// num_ctx=8192, which reported the true 4,235.
+//
+// A ~3% clip, always at the same end of the prompt, always invisible. Every
+// row in eval/results/runs.jsonl was produced under it.
+export const ANSWER_NUM_CTX = process.env.ANSWER_NUM_CTX
+  ? parseInt(process.env.ANSWER_NUM_CTX, 10)
+  : 8192;
+
 // Instruction prefix prepended to a QUERY (never to a passage) before
 // embedding. BAAI documents this for bge-*-en-v1.5 asymmetric retrieval --
 // passages embedded bare, short queries carrying the instruction -- and it was

@@ -14,7 +14,7 @@
 // model ignored into something it structurally could not violate. A constraint
 // you cannot accidentally break beats one you have to remember.
 
-import { OLLAMA_URL, ANSWER_MODEL, ANSWER_MAX_TOKENS } from "../config.js";
+import { OLLAMA_URL, ANSWER_MODEL, ANSWER_MAX_TOKENS, ANSWER_NUM_CTX } from "../config.js";
 
 // Sources are numbered [1]..[n] in the prompt and cited back by number, never
 // by chunk_id. This is the same lesson Step 5 learned the hard way: asked to
@@ -229,4 +229,230 @@ export async function generateAnswer(question, chunks) {
     latency_ms,
     model: ANSWER_MODEL,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Two-phase generation.
+//
+// The single-call design above asks one model, in one pass, to judge whether
+// the passages are sufficient AND to write the answer. That is a conflict of
+// interest, and generation pressure wins it: given eight passages and a
+// question, producing something is the path of least resistance. It is why the
+// system confidently describes what the corpus DOES contain when asked
+// something the corpus cannot answer (KNOWN_LIMITATIONS.md section 2), and why
+// four prompt amendments failed to stop it -- the prompt already forbids it in
+// the strongest terms available.
+//
+// Splitting the two removes the conflict rather than arguing with it. Phase 1
+// has no field in which to write prose, so it cannot smuggle a summary in as an
+// answer. Phase 2 runs only if phase 1 said yes, and is never asked to hedge.
+// Same lesson as the minItems/maxItems fix in Step 5: make compliance
+// structural rather than instructed.
+//
+// The latency win is a side effect, not the motive, but it is what makes the
+// system demonstrable: measured 2026-08-27, the single call takes 68.7s wall
+// (4,096 tokens prefill in 19.8s, then 751 tokens generated at ~17 tok/s).
+// Split and streamed, sources render at ~200ms, the verdict lands in a few
+// seconds, and the answer writes itself visibly instead of the page sitting
+// blank for over a minute.
+//
+// generateAnswer above is deliberately left untouched. Every row in
+// eval/results/runs.jsonl was measured against it, and silently changing the
+// generator would invalidate them.
+// ---------------------------------------------------------------------------
+
+// Both phases share ONE system prompt and ONE user prefix, differing only in a
+// trailing task line. That ordering is deliberate and measured.
+//
+// Ollama keeps a single KV-cache slot per loaded model and reuses it only for a
+// common prompt PREFIX. Measured 2026-08-27: re-sending an identical prompt
+// drops prefill from 9,813ms to 57ms, but any intervening request evicts it
+// (A -> B -> A costs the full 9,554ms again). So if phase 2 began with a
+// different system prompt, it would diverge at token one and pay its own cold
+// prefill -- roughly ten seconds of dead air between the verdict and the first
+// word of the answer.
+//
+// Putting the sources and the question first, and the task instruction last,
+// makes phase 1's prompt a prefix of phase 2's. Phase 2 then re-reads a cache
+// phase 1 just populated, and starts emitting almost immediately.
+const SHARED_SYSTEM = `You work with a corpus of US federal court filings. The numbered source \
+passages below are extracted from PDFs, so they may contain OCR noise, odd line breaks and \
+interleaved page furniture -- read through that.
+
+Use ONLY these sources. Do not use outside knowledge about any person, case or event, even if you \
+are confident it is true.`;
+
+function sharedPrefix(question, chunks) {
+  return `Sources:\n\n${formatSources(chunks)}\n\nQuestion: ${question}\n\n`;
+}
+
+// Phase 1's task. Note what is ABSENT from the schema it is paired with: any
+// string field long enough to hold an answer. `missing` is about what the
+// passages lack, not about the subject.
+const VERDICT_TASK = `TASK: Do NOT answer the question. Judge only whether these passages contain \
+enough to answer it.
+
+Mark each passage relevant or not, IN ORDER, judging each independently.
+
+Then set "sufficient". If you marked NO passage relevant, "sufficient" MUST be false -- there is
+nothing to answer from. It is TRUE if the relevant passages let you give even a partial but specific \
+answer -- a name, a role, a date, a holding. Do not demand completeness: a passage that answers half \
+the question is still enough to be worth answering from.
+
+Set it FALSE only when the passages genuinely cannot address the question at all -- most often \
+because the corpus does not contain that KIND of material. When false, "missing" names in one short \
+phrase what is absent, describing the gap in the corpus rather than the subject -- e.g. "no judicial \
+opinions, only party filings". When true, leave "missing" empty.`;
+
+// Phase 2's task. Plain text, not JSON: it streams straight to the page, and
+// partial JSON would have to be repaired on every frame to be rendered.
+// Nothing here needs structure -- the citations were already decided in phase 1
+// from the relevance verdicts.
+const ANSWER_TASK = `TASK: Answer the question from these sources.
+
+They have already been judged sufficient, so answer directly and confidently. Prefer specific names, \
+dates and docket numbers over vague summary. Do not describe the documents; answer the question. Do \
+not include source numbers in your reply. Plain prose, no headings, no markdown.`;
+
+// Booleans only, one per source, array length pinned to the source count.
+//
+// The single-call design paired each boolean with a <=10 word `why`, and that
+// was load-bearing there: it forced the model to actually consider each source
+// rather than wave a hand at all of them on the way to writing an answer.
+//
+// Here it is redundant and expensive. This call has no answer to hurry toward
+// -- the judgment IS the entire output, so the forcing function is structural
+// already. Measured 2026-08-27: with `why` the verdict generated 639 tokens and
+// took 42s of the 64s total; the eight justifications were nearly the whole
+// cost. Pinned minItems/maxItems still forces N separate decisions.
+function verdictSchema(sourceCount) {
+  return {
+    type: "object",
+    properties: {
+      source_relevance: {
+        type: "array",
+        minItems: sourceCount,
+        maxItems: sourceCount,
+        items: { type: "boolean" },
+      },
+      sufficient: { type: "boolean" },
+      missing: { type: "string" },
+    },
+    required: ["source_relevance", "sufficient", "missing"],
+  };
+}
+
+/**
+ * Phase 1: can these passages answer this question?
+ *
+ * Returns the per-source verdicts, the sufficiency decision, and -- when
+ * insufficient -- a short phrase naming what is absent. No answer text, by
+ * construction.
+ */
+export async function judgeSufficiency(question, chunks) {
+  if (chunks.length === 0) {
+    return { sufficient: false, missing: "no context was retrieved", citations: [], invalid_citations: 0, latency_ms: 0 };
+  }
+
+  const started = Date.now();
+  const response = await fetch(`${OLLAMA_URL}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: ANSWER_MODEL,
+      stream: false,
+      think: false,
+      format: verdictSchema(chunks.length),
+      options: { temperature: 0, seed: 42, num_predict: ANSWER_MAX_TOKENS, num_ctx: ANSWER_NUM_CTX },
+      messages: [
+        { role: "system", content: SHARED_SYSTEM },
+        { role: "user", content: sharedPrefix(question, chunks) + VERDICT_TASK },
+      ],
+    }),
+  });
+  if (!response.ok) throw new Error(`Ollama /api/chat returned HTTP ${response.status}: ${await response.text()}`);
+
+  const parsed = JSON.parse((await response.json()).message.content);
+  const verdicts = parsed.source_relevance ?? [];
+  // Positional, never model-echoed: verdict i is about source i+1.
+  const relevantNumbers = verdicts.map((v, i) => (v === true ? i + 1 : null)).filter(Boolean);
+  const { cited, invalid } = resolveCitations(relevantNumbers, chunks);
+
+  // Deterministic guard over the model's own verdict, not a second opinion.
+  //
+  // "If you marked no passage relevant, sufficient MUST be false" is in the
+  // prompt, and the model ignores it. Observed 2026-08-27 on AB-05 and ER-01:
+  // zero sources marked relevant, sufficient returned true, and ER-01 then
+  // produced a confidently wrong answer naming Jeffrey Epstein as one of the
+  // people called Maxwell.
+  //
+  // Same lesson as Step 5's minItems/maxItems and Step 3's schema-constrained
+  // types: an instruction the model can ignore becomes a rule it cannot when
+  // it moves out of the prompt and into code. Nothing can be answered from a
+  // set of passages the model itself judged entirely irrelevant, so this is
+  // an entailment of its own output rather than an override of its judgment.
+  const sufficient = Boolean(parsed.sufficient) && relevantNumbers.length > 0;
+
+  return {
+    sufficient,
+    missing: sufficient ? "" : parsed.missing || "no retrieved passage was judged relevant to the question",
+    source_relevance: verdicts,
+    citations: cited,
+    invalid_citations: invalid,
+    latency_ms: Date.now() - started,
+  };
+}
+
+/**
+ * Phase 2: write the answer, streaming.
+ *
+ * Calls onDelta with each text fragment as it arrives. Returns the assembled
+ * answer and whether it hit the token ceiling.
+ *
+ * Only call this when judgeSufficiency returned sufficient: true. Calling it
+ * regardless would reintroduce exactly the defect the split exists to remove.
+ */
+export async function streamAnswer(question, chunks, onDelta) {
+  const started = Date.now();
+  const response = await fetch(`${OLLAMA_URL}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: ANSWER_MODEL,
+      stream: true,
+      think: false,
+      options: { temperature: 0, seed: 42, num_predict: ANSWER_MAX_TOKENS, num_ctx: ANSWER_NUM_CTX },
+      messages: [
+        { role: "system", content: SHARED_SYSTEM },
+        { role: "user", content: sharedPrefix(question, chunks) + ANSWER_TASK },
+      ],
+    }),
+  });
+  if (!response.ok) throw new Error(`Ollama /api/chat returned HTTP ${response.status}: ${await response.text()}`);
+
+  // Ollama streams newline-delimited JSON. A network chunk can split a line in
+  // half, so hold the remainder rather than trying to parse it -- the tail of
+  // one read is the head of the next.
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let answer = "";
+  let doneReason = null;
+
+  for await (const bytes of response.body) {
+    buffer += decoder.decode(bytes, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const frame = JSON.parse(line);
+      const delta = frame.message?.content ?? "";
+      if (delta) {
+        answer += delta;
+        onDelta(delta);
+      }
+      if (frame.done) doneReason = frame.done_reason;
+    }
+  }
+
+  return { answer, truncated: doneReason === "length", latency_ms: Date.now() - started, model: ANSWER_MODEL };
 }

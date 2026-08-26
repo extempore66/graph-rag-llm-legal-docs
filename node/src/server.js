@@ -34,7 +34,7 @@ import { progressBus, emitProgress } from "./progressBus.js";
 import { retrieveNaive } from "./retrieval/naiveRetriever.js";
 import { retrieveHybrid } from "./retrieval/hybridRetriever.js";
 import { retrieveGraph } from "./retrieval/graphRetriever.js";
-import { generateAnswer } from "./retrieval/answerGenerator.js";
+import { generateAnswer, judgeSufficiency, streamAnswer } from "./retrieval/answerGenerator.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -205,6 +205,110 @@ app.post("/ask", async (req, res) => {
   } catch (err) {
     console.error(`[ask] ${strategy}: ${err.message}`);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// N.9 -- POST /ask/stream, the two-phase path, delivered as newline-delimited
+// JSON so the page can render in three beats instead of one.
+//
+// The motive is correctness, not speed: phase 1 judges sufficiency with no
+// field to write prose in, phase 2 writes the answer only if phase 1 said yes.
+// See answerGenerator.js for why that split is the fix for abstention.
+//
+// The demo consequence is what makes the system showable. Retrieval lands at
+// ~200ms, the verdict a few seconds later, then the answer streams. The
+// single-call /ask above leaves the page blank for 60-70 seconds, which is
+// fine for a batch eval and unusable in front of a room.
+//
+// NDJSON rather than SSE because this is one request producing one ordered
+// sequence of frames -- SSE's reconnection and event-type machinery buys
+// nothing here, and fetch() can read the body progressively without it.
+// /ask is left exactly as it was: the eval rows were measured against it.
+app.post("/ask/stream", async (req, res) => {
+  const question = (req.body?.question ?? "").trim();
+  const strategy = req.body?.strategy ?? "hybrid";
+
+  if (!question) return res.status(400).json({ error: "question is required" });
+  const retrieve = STRATEGIES[strategy];
+  if (!retrieve) {
+    return res.status(400).json({ error: `unknown strategy "${strategy}"`, available: Object.keys(STRATEGIES) });
+  }
+
+  res.writeHead(200, {
+    "Content-Type": "application/x-ndjson",
+    "Cache-Control": "no-cache",
+    // Without this, a proxy may buffer the whole response and deliver it at
+    // once -- which would silently undo the entire point of streaming.
+    "X-Accel-Buffering": "no",
+  });
+  const send = (frame) => res.write(JSON.stringify(frame) + "\n");
+
+  try {
+    const t0 = Date.now();
+    const chunks = await retrieve(question);
+    const retrievalMs = Date.now() - t0;
+
+    // Beat 1 -- everything retrieval knows. This is the frame that makes the
+    // page feel instant, and it carries the graph traversal, which is the most
+    // interesting thing on screen.
+    send({
+      type: "retrieval",
+      question,
+      strategy,
+      retrieval_ms: retrievalMs,
+      graph_path: chunks.graph_path ?? null,
+      sources: chunks.map((c) => ({
+        chunk_id: c.chunk_id,
+        source_file: c.source_file,
+        page_start: c.page_start,
+        page_end: c.page_end,
+        distance: c.distance ?? null,
+        channels: c.channels ?? null,
+        path: c.path ?? null,
+        text: c.text,
+      })),
+    });
+
+    // Beat 2 -- the sufficiency verdict, and the citations that come with it.
+    const verdict = await judgeSufficiency(question, chunks);
+    send({
+      type: "verdict",
+      sufficient: verdict.sufficient,
+      missing: verdict.missing,
+      cited_chunk_ids: verdict.citations.map((c) => c.chunk_id),
+      invalid_citations: verdict.invalid_citations,
+      verdict_ms: verdict.latency_ms,
+    });
+
+    // Beat 3 -- the answer, or an honest refusal. The refusal is assembled in
+    // code rather than asked for from the model: having decided the passages
+    // cannot answer, sending them back to be written up is precisely the
+    // round trip that produces a confident non-answer.
+    if (!verdict.sufficient) {
+      send({
+        type: "done",
+        refused: true,
+        // The model's `missing` sometimes ends in a full stop and sometimes
+        // does not, so the sentence is closed here rather than concatenated
+        // blindly into "... dicta..".
+        answer: verdict.missing
+          ? `These passages do not contain the answer -- ${verdict.missing.replace(/\s*\.*$/, "")}.`
+          : "These passages do not contain the answer.",
+        truncated: false,
+        answer_ms: 0,
+      });
+      return res.end();
+    }
+
+    const result = await streamAnswer(question, chunks, (delta) => send({ type: "delta", text: delta }));
+    send({ type: "done", refused: false, answer: result.answer, truncated: result.truncated, answer_ms: result.latency_ms });
+    res.end();
+  } catch (err) {
+    console.error(`[ask/stream] ${strategy}: ${err.message}`);
+    // Headers are already sent by this point, so the error has to travel as a
+    // frame rather than a status code.
+    send({ type: "error", error: err.message });
+    res.end();
   }
 });
 
