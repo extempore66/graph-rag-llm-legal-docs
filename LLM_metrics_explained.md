@@ -283,6 +283,21 @@ once per candidate. Hence the standard pattern: retrieve ~50 candidates fast,
 rerank those 50 slowly and well, keep the top 10. Cheap where it can be,
 expensive only where it pays.
 
+### Specific flow: where do the N candidates come from?
+
+That's the whole point of the cascade. Stage 1 scores all 3,338 chunks cheaply —
+one ANN lookup against precomputed vectors — and hands its top N down. Stage 2
+runs the expensive model only on those N. The cross-encoder is a reordering
+device applied to a shortlist someone else produced; it has no mechanism for
+finding anything.
+
+The consequence is the part that matters: **a reranker inherits stage 1's
+recall.** It improves precision and cannot improve recall — a chunk ranked #500
+by the bi-encoder is unrecoverable however good the reranker is. That is exactly
+why `hybridRetriever.js` is not built as retrieve-then-rerank: four channels each
+search the whole corpus independently, so a chunk that cosine ranks #329 can
+still arrive at #1 through BM25.
+
 Worth knowing there's a middle option — late-interaction models like ColBERT keep
 per-token embeddings and score with MaxSim, recovering term-level interaction
 while staying precomputable.
