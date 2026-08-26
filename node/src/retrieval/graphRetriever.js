@@ -295,7 +295,18 @@ async function hydrate(chunkIds) {
  * @param {string} question
  * @param {number} [k=RETRIEVAL_TOP_K]
  */
-export async function retrieveGraph(question, k = RETRIEVAL_TOP_K) {
+/**
+ * Link, expand and rank -- everything up to the point where the two consumers
+ * diverge. Shared rather than duplicated because retrieveGraph (the standalone
+ * strategy) and graphCandidates (the hybrid channel) must resolve a question
+ * IDENTICALLY. If the two drifted apart, the eval comparing them would be
+ * measuring the drift rather than the effect of fusion.
+ *
+ * Returns { anchored: false } when the question names no known entity and
+ * matches no recognised category. What to do about that is the caller's
+ * decision, and the two callers make opposite ones -- see each.
+ */
+async function resolveGraph(question) {
   const index = await getEntityIndex();
   const named = linkEntities(question, index);
 
@@ -310,11 +321,7 @@ export async function retrieveGraph(question, k = RETRIEVAL_TOP_K) {
   const linked = [...named, ...typed.filter((e) => !seen.has(e.key))];
   const linkMode = named.length && typed.length ? "name+type" : typed.length ? "type" : "name";
 
-  if (linked.length === 0) {
-    const rows = await retrieveNaive(question, k);
-    rows.graph_path = { fallback: true, reason: "question names no known entity and no recognised category", link_mode: "none", categories, linked_entities: [] };
-    return rows;
-  }
+  if (linked.length === 0) return { anchored: false, categories };
 
   const families = await expandFamilies(linked.map((l) => l.key));
 
@@ -332,11 +339,70 @@ export async function retrieveGraph(question, k = RETRIEVAL_TOP_K) {
   }
 
   const edges = await chunksForEntities([...new Set(allKeys)]);
-  const ranked = rankChunks(edges, seedKeyByFamilyKey);
-  const top = ranked.slice(0, k);
+  return {
+    anchored: true,
+    index,
+    linked,
+    linkMode,
+    categories,
+    families,
+    edges,
+    ranked: rankChunks(edges, seedKeyByFamilyKey),
+  };
+}
+
+// The provenance record, built once so both consumers report the traversal the
+// same way. `returned` differs between them (one hydrates k rows, the other
+// nominates a pool), so it is passed in rather than derived.
+function buildGraphPath(g, returned) {
+  return {
+    fallback: false,
+    link_mode: g.linkMode,
+    categories: g.categories,
+    linked_entities: g.linked.map((l) => ({
+      name: l.name,
+      type: l.type,
+      mentions: l.mentions,
+      coverage: Number(l.coverage.toFixed(2)),
+    })),
+    families: g.families.map((f) => ({ seed: f.seed.name, variants: f.siblings.map((s) => s.name) })),
+    reachable_chunks: new Set(g.edges.map((e) => e.chunk_id)).size,
+    returned,
+  };
+}
+
+const NO_ANCHOR_REASON = "question names no known entity and no recognised category";
+
+/**
+ * Graph retrieval for one question.
+ *
+ * Returns the same shape as retrieveNaive so runEval and answerGenerator need
+ * no special case, plus a `path` on each row and a `graph_path` summary on the
+ * array itself.
+ *
+ * Falls back to vector search when the question names no known entity -- and
+ * says so via graph_path.fallback rather than hiding it. A strategy that
+ * silently returned nothing on such questions would look artificially precise
+ * in the eval while being useless in the product; one that fell back quietly
+ * would take credit for the vector channel's work. The fallback rate is
+ * itself a finding: it measures how much of a question set is entity-shaped.
+ *
+ * @param {string} question
+ * @param {number} [k=RETRIEVAL_TOP_K]
+ */
+export async function retrieveGraph(question, k = RETRIEVAL_TOP_K) {
+  const g = await resolveGraph(question);
+
+  if (!g.anchored) {
+    const rows = await retrieveNaive(question, k);
+    rows.graph_path = { fallback: true, reason: NO_ANCHOR_REASON, link_mode: "none", categories: g.categories, linked_entities: [] };
+    return rows;
+  }
+
+  const top = g.ranked.slice(0, k);
   const textById = await hydrate(top.map((r) => r.chunk_id));
 
-  const nameByKey = new Map(index.map((e) => [e.key, e.name]));
+  const nameByKey = new Map(g.index.map((e) => [e.key, e.name]));
   const results = top
     .map((r) => {
       const row = textById.get(r.chunk_id);
@@ -360,14 +426,36 @@ export async function retrieveGraph(question, k = RETRIEVAL_TOP_K) {
     })
     .filter(Boolean);
 
-  results.graph_path = {
-    fallback: false,
-    link_mode: linkMode,
-    categories,
-    linked_entities: linked.map((l) => ({ name: l.name, type: l.type, mentions: l.mentions, coverage: Number(l.coverage.toFixed(2)) })),
-    families: families.map((f) => ({ seed: f.seed.name, variants: f.siblings.map((s) => s.name) })),
-    reachable_chunks: new Set(edges.map((e) => e.chunk_id)).size,
-    returned: results.length,
-  };
+  results.graph_path = buildGraphPath(g, results.length);
   return results;
+}
+
+/**
+ * The same traversal, exposed as a nomination list for hybrid fusion.
+ *
+ * Returns chunk_ids in graph rank order and nothing else -- no text, no page
+ * metadata. The fusing caller already holds the whole corpus in memory and
+ * hydrates the survivors itself, so hydrating here would be work thrown away
+ * for every chunk that loses the fusion.
+ *
+ * The critical difference from retrieveGraph: an unanchored question yields an
+ * EMPTY list, never a vector fallback. Falling back here would feed the vector
+ * ranking into RRF a second time under a different channel name, which is not
+ * a fallback but double-counting -- it would silently double the vector
+ * channel's voting weight on exactly the questions where graph contributes
+ * nothing. An empty channel abstains, and the other three decide.
+ *
+ * @param {string} question
+ * @param {number} limit  how many chunk_ids to nominate
+ */
+export async function graphCandidates(question, limit) {
+  const g = await resolveGraph(question);
+  if (!g.anchored) {
+    return {
+      chunk_ids: [],
+      graph_path: { fallback: true, reason: NO_ANCHOR_REASON, link_mode: "none", categories: g.categories, linked_entities: [] },
+    };
+  }
+  const ids = g.ranked.slice(0, limit).map((r) => r.chunk_id);
+  return { chunk_ids: ids, graph_path: buildGraphPath(g, ids.length) };
 }

@@ -16,6 +16,12 @@
 // HTML file with inline JS is enough for a single-user internal tool, and
 // keeps this consistent with the "no dependency until it's actually
 // needed" approach used everywhere else so far.
+// N.8 -- POST /ask, plus node/public/ask.html, so the retrieval side has a
+// way in. Until now the four retrieval modules could only be invoked by
+// runEval.js, which reads a fixed question file and writes JSONL: a
+// measurement harness, not a way to use the system. Same server rather
+// than a second process, because ingestion and querying share the same
+// LanceDB and ArangoDB connections and the same config.
 
 import express from "express";
 import multer from "multer";
@@ -25,9 +31,18 @@ import fs from "node:fs";
 import { PROJECT_ROOT, UPLOAD_CONCURRENCY } from "./config.js";
 import { processFile } from "./processFile.js";
 import { progressBus, emitProgress } from "./progressBus.js";
+import { retrieveNaive } from "./retrieval/naiveRetriever.js";
+import { retrieveHybrid } from "./retrieval/hybridRetriever.js";
+import { retrieveGraph } from "./retrieval/graphRetriever.js";
+import { generateAnswer } from "./retrieval/answerGenerator.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Needed only by /ask -- the upload route takes multipart, which multer
+// parses itself. Mounted globally because the body limit is irrelevant for
+// a payload that is one question string.
+app.use(express.json());
 
 // Serves node/public/index.html at GET / (and any other static assets
 // dropped in that folder later) -- placed before the /upload and /events
@@ -128,6 +143,69 @@ app.get("/events", (req, res) => {
     clearInterval(heartbeat);
     progressBus.off("progress", send);
   });
+});
+
+// Retrieval strategies, by the same names the eval uses. Kept as a lookup
+// rather than an if-chain so an unknown strategy is a 400 listing what IS
+// available, and so adding a fifth here is one line in one place.
+const STRATEGIES = {
+  naive: retrieveNaive,
+  hybrid: retrieveHybrid,
+  graph: retrieveGraph,
+};
+
+// One question in, one grounded answer out. Deliberately returns the whole
+// retrieval record alongside the answer -- the sources with their page
+// ranges, which channels nominated each one, and the graph traversal path --
+// because for this system HOW an answer was reached is as much the product
+// as the answer text. A page that showed only prose would hide the single
+// most interesting thing it does.
+app.post("/ask", async (req, res) => {
+  const question = (req.body?.question ?? "").trim();
+  const strategy = req.body?.strategy ?? "hybrid";
+
+  if (!question) return res.status(400).json({ error: "question is required" });
+  const retrieve = STRATEGIES[strategy];
+  if (!retrieve) {
+    return res.status(400).json({ error: `unknown strategy "${strategy}"`, available: Object.keys(STRATEGIES) });
+  }
+
+  try {
+    const t0 = Date.now();
+    const chunks = await retrieve(question);
+    const retrievalMs = Date.now() - t0;
+    const answer = await generateAnswer(question, chunks);
+
+    res.json({
+      question,
+      strategy,
+      answer: answer.answer,
+      answered_from_context: answer.answered_from_context,
+      truncated: answer.truncated,
+      invalid_citations: answer.invalid_citations,
+      // The cited chunk_ids, so the page can mark which sources the model
+      // actually used rather than just which ones it was given.
+      cited_chunk_ids: answer.citations.map((c) => c.chunk_id),
+      sources: chunks.map((c) => ({
+        chunk_id: c.chunk_id,
+        source_file: c.source_file,
+        page_start: c.page_start,
+        page_end: c.page_end,
+        distance: c.distance ?? null,
+        channels: c.channels ?? null,
+        path: c.path ?? null,
+        text: c.text,
+      })),
+      // Present for graph and hybrid, null for naive. Carries the fallback
+      // flag and reason, which is the thing worth putting on screen.
+      graph_path: chunks.graph_path ?? null,
+      retrieval_ms: retrievalMs,
+      answer_ms: answer.latency_ms,
+    });
+  } catch (err) {
+    console.error(`[ask] ${strategy}: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.listen(PORT, () => {

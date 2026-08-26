@@ -1,4 +1,4 @@
-// Multi-channel retrieval. Three independent channels each search the WHOLE
+// Multi-channel retrieval. Four independent channels each search the WHOLE
 // corpus, and their ranked lists are fused. Deliberately not retrieve-then-
 // rerank: a reranker can only reorder what stage one already returned, so
 // anything the first stage ranks badly is unrecoverable. Every channel here
@@ -18,6 +18,13 @@
 //             dicta ("the Court notes that...") sit at #329-#2970 by cosine but
 //             are #1-#4 of only 6 matches once the query's jargon is expanded
 //             into the literal phrasing a filing uses.
+//
+//   graph     "filings mentioning both Maxwell -- a conjunction no single query vector can
+//             and Epstein"                        express, since embedding the phrase yields
+//             one point resembling a blend of the two rather than the set containing both.
+//             Also reaches chunks that use a surface form the question did not:
+//             coreference expansion turns a hit on "Ms. Giuffre" into the whole
+//             876-chunk family. Added last, after being measured standalone.
 //
 // The three are not merely complementary, they are inversely correlated:
 // density ranked the obiter document #2 and the Rodriguez deposition #12, while
@@ -40,6 +47,7 @@ import {
 } from "../config.js";
 import { embedQuery } from "./naiveRetriever.js";
 import { expandQuery } from "./queryExpansion.js";
+import { graphCandidates } from "./graphRetriever.js";
 
 let lanceDbConnection = null;
 async function getTable() {
@@ -164,7 +172,21 @@ export async function retrieveHybrid(question, k = RETRIEVAL_TOP_K) {
   if (!bm25) bm25 = buildBm25(corpus);
   const byId = new Map(corpus.map((c) => [c.chunk_id, c]));
 
-  const expansion = USE_QUERY_EXPANSION ? await expandQuery(question).catch(() => null) : null;
+  // Graph runs concurrently with query expansion: both are independent of the
+  // embedding below and of each other, and graph traversal measured 30-91 ms,
+  // so serialising them would add latency for no reason.
+  //
+  // A traversal failure must not take the whole retrieval down. The other three
+  // channels are fully functional without it, so a thrown error degrades this
+  // to the previously-measured three-channel behaviour and records why, rather
+  // than failing a query that four-fifths of the machinery could still answer.
+  const [expansion, graph] = await Promise.all([
+    USE_QUERY_EXPANSION ? expandQuery(question).catch(() => null) : Promise.resolve(null),
+    graphCandidates(question, CHANNEL_POOL).catch((err) => ({
+      chunk_ids: [],
+      graph_path: { fallback: true, reason: `graph channel failed: ${err.message}`, link_mode: "none", categories: [], linked_entities: [] },
+    })),
+  ]);
 
   // One embedding, reused by both vector-based channels.
   const vector = await embedQuery(question);
@@ -200,6 +222,14 @@ export async function retrieveHybrid(question, k = RETRIEVAL_TOP_K) {
     : question;
   const lexicalIds = bm25Search(lexicalQuery, CHANNEL_POOL).map((x) => corpus[x.i].chunk_id);
 
+  // Channel 4 -- entity traversal. Filtered against the LanceDB corpus because
+  // the two stores are not perfectly in lockstep: a handful of chunks exist as
+  // graph anchors in Arango without a corresponding LanceDB row, and every
+  // other channel draws its ids FROM LanceDB so cannot produce one. Unfiltered,
+  // such an id would survive fusion and hydrate to undefined -- a row with no
+  // text, silently handed to the answer generator.
+  const graphIds = graph.chunk_ids.filter((id) => byId.has(id));
+
   const distanceById = new Map(ranked.map((r) => [r.chunk_id, r._distance]));
 
   // Reserved slots for the vector channel, and the reason is a measured
@@ -227,10 +257,10 @@ export async function retrieveHybrid(question, k = RETRIEVAL_TOP_K) {
   const guaranteed = vectorIds.slice(0, reserved);
   const guaranteedSet = new Set(guaranteed);
 
-  const fusedRest = rankFuse({ vector: vectorIds, density: densityIds, lexical: lexicalIds })
+  const fusedRest = rankFuse({ vector: vectorIds, density: densityIds, lexical: lexicalIds, graph: graphIds })
     .filter((f) => !guaranteedSet.has(f.chunk_id));
 
-  return [
+  const results = [
     ...guaranteed.map((id, i) => ({ chunk_id: id, score: null, channels: [`vector#${i + 1}`, "reserved"] })),
     ...fusedRest,
   ]
@@ -241,4 +271,12 @@ export async function retrieveHybrid(question, k = RETRIEVAL_TOP_K) {
       fusion_score: f.score,
       channels: f.channels,
     }));
+
+  // Carried out so the eval and the query page can tell WHY graph contributed
+  // nothing to a given answer -- an unanchored question is a different fact
+  // from a traversal that ran and lost the fusion, and only this distinguishes
+  // them. `nominated` is what the channel actually put to the vote after the
+  // LanceDB filter above.
+  results.graph_path = { ...graph.graph_path, nominated: graphIds.length };
+  return results;
 }
