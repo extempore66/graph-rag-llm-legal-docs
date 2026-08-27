@@ -44,15 +44,25 @@ structural, not a better prompt. Backup slide B2 covers it.
 
 ## The one that surprises people
 
-**Q.** Who were the defense attorneys in this case?
-**Follow-up:** You said "Alan Dershowitz is represented by Mary Borja and Thomas
-Scott". Is Alan Dershowitz a defendant in this case? Why is he "represented"?
+**Q.** Which attorneys appeared for the defendant?
+**Follow-up:** Is Alan Dershowitz a defendant in this case? Why is he
+represented by counsel?
 **Strategy:** `hybrid` · **Status:** verified
+
+> **Do not ask "Who were the defense attorneys in this case?"** — the phrasing
+> matters and this one fails. Same retrieval, same passage at slot 1, but the
+> sufficiency judge refuses it. Measured below.
 
 The follow-up is the strong beat. The answer reads as implausible — a defense
 attorney with his own attorneys — and the system explains it correctly from the
 documents: defamation litigation arising from his involvement in the case and
 the allegations made against him.
+
+The answer names both teams:
+
+> "…Alan M. Dershowitz, represented by Mary Borja, Thomas Scott, and Richard
+> Simpson. Additionally, Ghislaine Maxwell was represented by Jeffrey S.
+> Pagliuca, Laura A. Menninger, and Ty Gee."
 
 Corpus evidence, if challenged:
 
@@ -104,6 +114,30 @@ LLM call, which succeeded on this question.
 
 Say out loud: *four slots are reserved for plain similarity so fusion can never
 subtract. The answer came from one of the four it added.*
+
+### The phrasing trap — worth knowing, possibly worth showing
+
+Asked as **"Who were the defense attorneys in this case?"** the system refuses,
+and the refusal is wrong. Measured:
+
+| | |
+|---|---|
+| Answering passage | `1335.3_1` p.5 — *"MS. BORJA: Mary Borja for Defendant, Alan Dershowitz."* |
+| Where retrieval put it | **slot 1**, `vector#1 reserved` — every strategy, every run |
+| Verdict at k=8 | `sufficient=false`, zero sources cited |
+| Verdict at k=2 | `sufficient=true` — same passage, fewer neighbours |
+
+The evidence is a courtroom **appearance line**, not a sentence saying "the
+defense attorneys were X". The judge wants the passage to answer in the
+question's own vocabulary, and refuses when it does not.
+
+This is the other side of the abstention fix. Two-phase generation cured
+over-generation and bought **over-refusal** in exchange — and the eval measured
+the first without ever measuring the second.
+
+If the panel is engaged, this is worth showing on purpose: a system you can make
+fail deliberately, with a named cause, reads better than one that only ever
+works.
 
 ---
 

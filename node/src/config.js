@@ -196,6 +196,27 @@ export const ANSWER_MAX_TOKENS = process.env.ANSWER_MAX_TOKENS
 // (deepseek-r1:14b and :32b are both installed locally).
 export const ANSWER_MODEL = process.env.ANSWER_MODEL || EXTRACTION_MODEL;
 
+// Judge each retrieved passage in its own model call, rather than judging all
+// of them in one.
+//
+// Not a preference -- a fix for a measured defect. The single-call verdict was
+// meant to judge each source independently via a per-source boolean array, and
+// does not: measured 2026-08-27, "Who were the defense attorneys in this case?"
+// was refused with the answering passage sitting in slot 1, and the same eight
+// passages minus one unrelated neighbour were accepted. See
+// judgeSufficiencyIndependent in answerGenerator.js for the full measurement.
+//
+// The cost is eight small calls instead of one large one, which the user
+// explicitly accepted. Measured, it is not in fact slower: 26.3s against 28.9s
+// on the same question, because per-call generation drops from ~140 tokens to
+// a handful while prefill is unchanged.
+//
+// Left switchable because every row in eval/results/runs.jsonl was produced by
+// the single-call path, and a comparison against those rows needs it back.
+export const INDEPENDENT_VERDICT = process.env.INDEPENDENT_VERDICT
+  ? process.env.INDEPENDENT_VERDICT !== "false"
+  : true;
+
 // Context window for answer generation, in tokens.
 //
 // Not a tuning knob -- a bug fix. Ollama's default context for this model is

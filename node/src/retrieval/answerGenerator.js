@@ -412,6 +412,121 @@ export async function judgeSufficiency(question, chunks) {
  * Only call this when judgeSufficiency returned sufficient: true. Calling it
  * regardless would reintroduce exactly the defect the split exists to remove.
  */
+/**
+ * Per-source verdict schema. One boolean, nothing else.
+ *
+ * No prose field, for the same reason judgeSufficiency's schema has none: a
+ * field long enough to hold an answer invites the model to write one instead
+ * of deciding.
+ */
+const SINGLE_SCHEMA = {
+  type: "object",
+  properties: { answers_question: { type: "boolean" } },
+  required: ["answers_question"],
+};
+
+const SINGLE_TASK = `\n\nTask: decide whether THIS ONE passage contains information that helps answer the \
+question above. Set "answers_question" true if it does, even partially -- a passage that supplies part of \
+the answer counts. Set it false if the passage is about something else, or merely mentions the same people \
+without bearing on what was asked.
+
+Judge only the passage shown. Do not speculate about what other passages might contain.`;
+
+/**
+ * The sufficiency verdict, one passage at a time.
+ *
+ * WHY THIS EXISTS. judgeSufficiency asks the model to judge all eight passages
+ * in a single call, with a per-source boolean array that was meant to keep the
+ * judgements independent. It does not. Measured 2026-08-27 on "Who were the
+ * defense attorneys in this case?", whose answer sits in slot 1 of 8 --
+ * a hearing transcript reading "MS. BORJA: Mary Borja for Defendant, Alan
+ * Dershowitz. MR. SCOTT: Thomas Scott for the Defendant.":
+ *
+ *   all 8 passages                     -> sufficient=false, 0 cited
+ *   the same 8, minus slot 7           -> sufficient=TRUE
+ *   the same 8, slot 7 swapped for another passage -> false
+ *   k=1 false · k=2 TRUE · k=4 false · k=8 false
+ *
+ * And, from the other direction, with the retrieved set held fixed the verdict
+ * is identical whether the question says "who were" or "who are" -- the tense
+ * that appeared to cause it only moved the query embedding, which changed
+ * three of the eight neighbours. The judgement on slot 1 was a function of the
+ * other seven passages the whole time.
+ *
+ * Neither count nor content explains it on its own; the boundary is simply
+ * unstable under small perturbations of the set. That cannot be fixed by
+ * instructing the model to judge independently, because the instruction was
+ * already there. So the set stops being a variable: one call per passage, each
+ * seeing exactly one passage, and no opportunity for the others to interfere.
+ *
+ * COST. Eight small calls rather than one large one. Prefill is comparable --
+ * the same passages are read either way -- and generation collapses from ~140
+ * tokens to a handful per call. The requests are issued together; Ollama
+ * serialises them internally.
+ *
+ * Returns the same shape as judgeSufficiency, so it is a drop-in.
+ */
+export async function judgeSufficiencyIndependent(question, chunks) {
+  if (chunks.length === 0) {
+    return { sufficient: false, missing: "no context was retrieved", citations: [], invalid_citations: 0, latency_ms: 0 };
+  }
+
+  const started = Date.now();
+
+  const verdicts = await Promise.all(
+    chunks.map(async (chunk) => {
+      const response = await fetch(`${OLLAMA_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: ANSWER_MODEL,
+          stream: false,
+          think: false,
+          format: SINGLE_SCHEMA,
+          options: { temperature: 0, seed: 42, num_predict: 24, num_ctx: ANSWER_NUM_CTX },
+          messages: [
+            { role: "system", content: SHARED_SYSTEM },
+            // One passage, numbered 1, so the prompt shape matches the multi-source
+            // one and the model is not asked to reason about a bare fragment.
+            { role: "user", content: sharedPrefix(question, [chunk]) + SINGLE_TASK },
+          ],
+        }),
+      });
+      if (!response.ok) {
+        // One failed judgement must not lose the whole verdict. A passage we
+        // could not judge is treated as not relevant, which fails toward
+        // refusing rather than toward answering from unvetted context.
+        console.warn(`[verdict] per-source call failed (HTTP ${response.status}); treating passage as not relevant`);
+        return false;
+      }
+      try {
+        return JSON.parse((await response.json()).message.content).answers_question === true;
+      } catch (err) {
+        console.warn(`[verdict] per-source verdict unparseable (${err.message}); treating passage as not relevant`);
+        return false;
+      }
+    })
+  );
+
+  const relevantNumbers = verdicts.map((v, i) => (v === true ? i + 1 : null)).filter(Boolean);
+  const { cited, invalid } = resolveCitations(relevantNumbers, chunks);
+
+  // Sufficiency is now derived, not asked for. Nothing can be answered from a
+  // set of passages every one of which was judged not to bear on the question,
+  // and if any passage does bear on it the answer phase is the right place to
+  // decide how far it gets -- that phase can still say the passages fall short.
+  const sufficient = relevantNumbers.length > 0;
+
+  return {
+    sufficient,
+    missing: sufficient ? "" : "no retrieved passage contains information bearing on the question",
+    source_relevance: verdicts,
+    citations: cited,
+    invalid_citations: invalid,
+    latency_ms: Date.now() - started,
+  };
+}
+
 export async function streamAnswer(question, chunks, onDelta) {
   const started = Date.now();
   const response = await fetch(`${OLLAMA_URL}/api/chat`, {

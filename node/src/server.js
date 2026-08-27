@@ -28,13 +28,18 @@ import multer from "multer";
 import pLimit from "p-limit";
 import path from "node:path";
 import fs from "node:fs";
-import { PROJECT_ROOT, UPLOAD_CONCURRENCY } from "./config.js";
+import { INDEPENDENT_VERDICT, PROJECT_ROOT, UPLOAD_CONCURRENCY } from "./config.js";
 import { processFile } from "./processFile.js";
 import { progressBus, emitProgress } from "./progressBus.js";
 import { retrieveNaive } from "./retrieval/naiveRetriever.js";
 import { retrieveHybrid } from "./retrieval/hybridRetriever.js";
 import { retrieveGraph } from "./retrieval/graphRetriever.js";
-import { generateAnswer, judgeSufficiency, streamAnswer } from "./retrieval/answerGenerator.js";
+import {
+  generateAnswer,
+  judgeSufficiency,
+  judgeSufficiencyIndependent,
+  streamAnswer,
+} from "./retrieval/answerGenerator.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -270,7 +275,12 @@ app.post("/ask/stream", async (req, res) => {
     });
 
     // Beat 2 -- the sufficiency verdict, and the citations that come with it.
-    const verdict = await judgeSufficiency(question, chunks);
+    //
+    // One call per passage by default. The single-call form judges the eight
+    // together and its verdict on any one of them turns out to depend on the
+    // other seven -- see INDEPENDENT_VERDICT in config.js for the measurement.
+    const judge = INDEPENDENT_VERDICT ? judgeSufficiencyIndependent : judgeSufficiency;
+    const verdict = await judge(question, chunks);
     send({
       type: "verdict",
       sufficient: verdict.sufficient,
