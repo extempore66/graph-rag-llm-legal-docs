@@ -201,9 +201,37 @@ export const ANSWER_MODEL = process.env.ANSWER_MODEL || EXTRACTION_MODEL;
 // Not a tuning knob -- a bug fix. Ollama's default context for this model is
 // 4096, and it clips silently rather than erroring. Measured 2026-08-27: a k=8
 // answer prompt is 4,235 tokens, so `prompt_eval_count` came back as exactly
-// 4096 on every call and the tail of the last source was being dropped before
-// the model ever saw it. Confirmed by re-running the identical prompt with
-// num_ctx=8192, which reported the true 4,235.
+// 4096 on every call. A real token count is never a round power of two; that
+// was the only visible symptom. Confirmed by re-running the identical prompt
+// with num_ctx=8192, which reported the true 4,235.
+//
+// WHICH END IS CUT -- measured 2026-08-27, and it is the front, not the tail.
+// A probe with markers at both ends of an over-length prompt, run at both
+// context sizes:
+//
+//   num_ctx=8192  prompt_eval_count=5281  sees SYSTEM + ALPHA + OMEGA
+//   num_ctx=4096  prompt_eval_count=4096  sees OMEGA only
+//
+// So the prompt is consumed in this order, and the system message is NOT
+// protected:
+//
+//   [SYSTEM PROMPT] [Sources 1..8] [Question] [Task]
+//    ^ eaten first                             ^ always survives
+//
+// That matters more than the size of the clip. The tokens lost are not the
+// ragged end of the least useful passage -- they are the top of the
+// instructions. SYSTEM_PROMPT (the single-call path, used for every eval row)
+// measures 322 tokens; SHARED_SYSTEM (two-phase) measures 74. A ~139 token
+// overrun therefore removes roughly the first 40% of the longer one, which
+// opens with "using ONLY the numbered source passages provided".
+//
+// An earlier version of this comment claimed the TAIL of the last source was
+// dropped. That was inferred, never measured, and is wrong.
+//
+// Bearing on the abstention work: four rounds of prompt fixes were judged to
+// have failed structurally. Part of that may be simpler -- the top of the
+// prompt was not reaching the model. Not re-tested, and worth knowing before
+// anyone concludes prompt engineering cannot solve abstention here.
 //
 // A ~3% clip, always at the same end of the prompt, always invisible. Every
 // row in eval/results/runs.jsonl was produced under it.

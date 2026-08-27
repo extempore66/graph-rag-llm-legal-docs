@@ -136,15 +136,15 @@ Deliberately **not** a unique DB index on `(name, type)`: that would force two g
 
 **Measured result, full corpus, v2 → v3:**
 
-| | before | after |
-| --- | --- | --- |
-| wall clock | 1,162.7 min | 907.4 min |
-| failures | 1 | 0 |
-| entities | 1,947 | 1,816 |
-| mentions | 17,556 | 17,557 |
-| possible-duplicate flags | 240 | 177 |
-| exact redundancy | 33 (1.7%) | 3 (0.17%) |
-| case-insensitive redundancy | 110 (5.6%) | 5 (0.28%) |
+|                             | before      | after     |
+| --------------------------- | ----------- | --------- |
+| wall clock                  | 1,162.7 min | 907.4 min |
+| failures                    | 1           | 0         |
+| entities                    | 1,947       | 1,816     |
+| mentions                    | 17,556      | 17,557    |
+| possible-duplicate flags    | 240         | 177       |
+| exact redundancy            | 33 (1.7%)   | 3 (0.17%) |
+| case-insensitive redundancy | 110 (5.6%)  | 5 (0.28%) |
 
 131 fewer nodes for the same mention count — fragmentation consolidated, nothing lost. Faster despite doing strictly more real judgment work, because fix 3 stopped paying for noise pairs.
 

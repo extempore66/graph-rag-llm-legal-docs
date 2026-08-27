@@ -181,9 +181,27 @@ export async function retrieveHybrid(question, k = RETRIEVAL_TOP_K) {
   // to the previously-measured three-channel behaviour and records why, rather
   // than failing a query that four-fifths of the machinery could still answer.
   const [expansion, graph] = await Promise.all([
-    USE_QUERY_EXPANSION ? expandQuery(question).catch(() => null) : Promise.resolve(null),
+    // A failed expansion is survivable -- the lexical channel falls back to the
+    // raw question below -- but it was previously invisible, and silence is how
+    // the num_ctx clip went unnoticed for a whole eval run.
+    //
+    // It fails more than one might assume. Measured 2026-08-27 across eight
+    // demo questions, four came back unparseable: the model loops generating
+    // synonyms, runs to num_predict, and the JSON ends mid-string. All four are
+    // ENUMERATIVE questions ("who were the defense attorneys", "which courts
+    // appear", "what did the FBI do") -- the prompt asks for related phrasings
+    // and such a question gives it no natural place to stop. Deterministic at
+    // temperature 0, so those questions fail every time, and raising the cap to
+    // 900 did not help.
+    USE_QUERY_EXPANSION
+      ? expandQuery(question).catch((err) => {
+          console.warn(`[hybrid] query expansion failed, lexical falls back to the raw question: ${err.message}`);
+          return null;
+        })
+      : Promise.resolve(null),
     graphCandidates(question, CHANNEL_POOL).catch((err) => ({
       chunk_ids: [],
+      paths: new Map(),
       graph_path: { fallback: true, reason: `graph channel failed: ${err.message}`, link_mode: "none", categories: [], linked_entities: [] },
     })),
   ]);
@@ -270,6 +288,16 @@ export async function retrieveHybrid(question, k = RETRIEVAL_TOP_K) {
       distance: distanceById.get(f.chunk_id) ?? null,
       fusion_score: f.score,
       channels: f.channels,
+      // Provenance from the graph channel, where it has any. Undefined for a
+      // chunk the traversal never reached -- which is most of them, and is
+      // itself informative: a row with channel tags but no path was found by
+      // similarity or keywords alone.
+      //
+      // Note this is attached AFTER fusion, so it appears on a chunk the graph
+      // nominated even when another channel outranked it. That is correct: the
+      // question the panel answers is "how was this passage reached", and
+      // "the graph reached it too" is part of the answer.
+      path: graph.paths?.get(f.chunk_id) ?? null,
     }));
 
   // Carried out so the eval and the query page can tell WHY graph contributed

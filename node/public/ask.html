@@ -52,6 +52,16 @@
   details summary { cursor: pointer; color: #2563eb; font-size: 0.8rem; }
   details p { white-space: pre-wrap; background: #fafafa; padding: 0.5rem; border-radius: 4px; margin: 0.4rem 0 0; font-size: 0.82rem; line-height: 1.45; }
   .muted { color: #999; }
+
+  /* Edge evidence: the role and the words that put an entity in this passage.
+     Indented under the document cell so it reads as belonging to that row, and
+     quiet enough that it does not compete with the document name. */
+  .ev { margin: 0.3rem 0 0 0; padding: 0 0 0 0.6rem; border-left: 2px solid #e5e7eb; list-style: none; }
+  .ev li { font-size: 0.78rem; color: #555; margin: 0.15rem 0; }
+  .ev .who { font-weight: 600; color: #222; }
+  .ev .role { color: #3730a3; }
+  .ev .quote { color: #666; font-style: italic; }
+  .ev .more { color: #999; font-style: normal; }
   #status { font-size: 0.9rem; color: #666; min-height: 1.2rem; }
 </style>
 </head>
@@ -62,7 +72,29 @@
 <nav><a href="/">&larr; Ingestion / batch upload</a></nav>
 
 <form id="askForm">
-  <input id="question" type="text" placeholder="e.g. What did Ghislaine Maxwell say about Virginia Giuffre?" autocomplete="off" />
+  <input id="question" type="text" list="demoQuestions"
+         placeholder="e.g. What did Ghislaine Maxwell say about Virginia Giuffre?"
+         autocomplete="off" />
+
+  <!-- Demo questions, kept in sync by hand with _demo_questions.md at the
+       repo root, which records WHY each one is worth asking and what to point
+       at while it runs.
+
+       A native <datalist> rather than a dropdown or any JavaScript: it costs
+       nothing, cannot break, and stays out of the way. The field is still a
+       free-text input -- typing anything at all works exactly as before, and
+       suggestions only appear once a few characters match. The point is not
+       convenience, it is not mistyping a question in front of a panel. -->
+  <datalist id="demoQuestions">
+    <option value="Who is Alfredo Rodriguez and what was his role in relation to Jeffrey Epstein?"></option>
+    <option value="What is the obiter dicta in this case?"></option>
+    <option value="Who were the defense attorneys in this case?"></option>
+    <option value="Is Alan Dershowitz a defendant in this case? Why is he represented by counsel?"></option>
+    <option value="What did Virginia Giuffre say about Ghislaine Maxwell and Jeffrey Epstein in her deposition?"></option>
+    <option value="Which courts appear in these filings?"></option>
+    <option value="Which organizations are associated with Jeffrey Epstein?"></option>
+    <option value="What did the FBI do in this investigation?"></option>
+  </datalist>
   <select id="strategy">
     <option value="hybrid">hybrid — 4 channels fused</option>
     <option value="graph">graph — entity traversal</option>
@@ -237,23 +269,68 @@ function graphPanel(gp) {
       <div class="kv"><b>Linked entities</b> (${esc(gp.link_mode)}): ${ents || '<span class="muted">none</span>'}</div>
       ${fams ? `<div class="kv" style="margin-top:.5rem"><b>Resolved as the same entity</b>${fams}</div>` : ""}
       <div class="kv" style="margin-top:.5rem">
-        <b>${gp.reachable_chunks ?? "?"}</b> chunks reachable by traversal;
+        <b>${fmt(gp.reachable_mentions)}</b> mentions across
+        <b>${fmt(gp.reachable_chunks)}</b> passages reachable by traversal;
         <b>${gp.nominated ?? gp.returned ?? "?"}</b> ${gp.nominated !== undefined ? "nominated into fusion" : "returned"}.
       </div>
+      ${gp.pool_chunks !== undefined && gp.pool_chunks < gp.reachable_chunks ? `<div class="kv muted">Ranking considered ${fmt(gp.pool_chunks)} of those passages.</div>` : ""}
     </div>`;
+}
+
+/**
+ * The mentions that reached this chunk, one line each.
+ *
+ * `mention_count` can exceed the number of entries shown: the retriever keeps
+ * at most four per chunk, because a heavily mentioned entity can hit one
+ * passage many times and this is held for the whole ranking pool. When it does,
+ * say so rather than letting four look like all of them.
+ */
+function evidenceList(path) {
+  const shown = path.evidence.length;
+  const items = path.evidence.map((e) => {
+    // 18,576 of 19,009 edges carry the literal string "none" as their role --
+    // the extraction schema required the field and the model almost never had
+    // grounds to fill it. Rendering "none" 97% of the time would bury the 433
+    // edges where the role is real (plaintiff, defendant, counsel, judge,
+    // witness, non_party), so it is shown only when it says something.
+    const hasRole = e.role && e.role !== "none";
+    const role = hasRole ? ` <span class="role">${esc(e.role)}</span>` : "";
+    const quote = e.quote ? ` <span class="quote">\u201c${esc(e.quote)}\u201d</span>` : "";
+    return `<li><span class="who">${esc(e.entity_name)}</span>${role}${quote}</li>`;
+  });
+  if (path.mention_count > shown) {
+    items.push(`<li class="more">+ ${path.mention_count - shown} more mention(s) in this passage</li>`);
+  }
+  return `<ul class="ev">${items.join("")}</ul>`;
+}
+
+// Thousands separators. These counts are now genuinely large (a heavily
+// mentioned entity reaches thousands of passages), and an unseparated five
+// digit number in a demo reads as noise.
+function fmt(n) {
+  return typeof n === "number" ? n.toLocaleString("en-US") : "?";
 }
 
 function sourcesTable(d) {
   const cited = new Set(d.cited_chunk_ids || []);
   const rows = d.sources.map((s, i) => {
     const pages = s.page_start === s.page_end ? `p. ${s.page_start}` : `pp. ${s.page_start}–${s.page_end}`;
-    const via = s.path?.matched_entities?.length
-      ? `<div class="chan">via ${s.path.matched_entities.map(esc).join(", ")}</div>`
+    // Two distinct facts, deliberately rendered as two lines.
+    //
+    // "reached via" is WHICH people the traversal matched in this passage.
+    // The list under it is WHY -- the payload carried on each je_mentioned_in
+    // edge: the role the extraction assigned, and the words it read to assign
+    // it. That evidence is the concrete form of a claim this system makes
+    // everywhere else in the abstract: evidence belongs to a mention, not to a
+    // person, so merging two names can never overwrite it.
+    const matched = s.path?.matched_entities?.length
+      ? `<div class="chan">reached via ${s.path.matched_entities.map(esc).join(", ")}</div>`
       : "";
+    const ev = s.path?.evidence?.length ? evidenceList(s.path) : "";
     const chan = s.channels ? `<div class="chan">${s.channels.map(esc).join(" ")}</div>` : "";
     return `<tr>
       <td class="num">${i + 1}</td>
-      <td>${cited.has(s.chunk_id) ? '<span class="badge badge-ok">cited</span>' : ""}${esc(shortFile(s.source_file))}<br /><span class="muted">${pages}</span>${chan}${via}</td>
+      <td>${cited.has(s.chunk_id) ? '<span class="badge badge-ok">cited</span>' : ""}${esc(shortFile(s.source_file))}<br /><span class="muted">${pages}</span>${chan}${matched}${ev}</td>
       <td class="num">${s.distance === null ? '<span class="muted">—</span>' : s.distance.toFixed(3)}</td>
       <td><details><summary>text</summary><p>${esc(s.text)}</p></details></td>
     </tr>`;

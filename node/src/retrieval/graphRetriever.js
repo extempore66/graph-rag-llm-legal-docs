@@ -40,6 +40,11 @@ const MAX_LINKED_ENTITIES = 8;
 // because ranking is the cheap part; the traversal already happened.
 const CHUNK_POOL = 200;
 
+// How many edge-evidence entries to keep per chunk. Enough to show that a
+// passage was reached several ways; short enough that 200 chunks of them is
+// a few kilobytes rather than a few megabytes.
+const MAX_EVIDENCE_PER_CHUNK = 4;
+
 const db = new Database({
   url: ARANGO_URL, databaseName: ARANGO_DB,
   auth: { username: ARANGO_USER, password: ARANGO_PASSWORD },
@@ -216,6 +221,30 @@ async function expandFamilies(keys) {
  * it. Ranking happens in JS rather than AQL because the ordering rule is a
  * judgement about relevance, and it belongs where it can be read and changed
  * next to the comment explaining it.
+ *
+ * NO LIMIT, and that is a deliberate reversal. This query used to carry
+ * `LIMIT CHUNK_POOL * 10` as a guard on the ranking pool, but an AQL LIMIT
+ * inside a nested FOR cuts the COMBINED stream, not each inner loop -- so the
+ * first entity's edges consumed the whole budget and later entities were not
+ * merely under-sampled, they contributed nothing.
+ *
+ * Measured 2026-08-27 on the Giuffre/Maxwell/Epstein set (44 keys after family
+ * expansion):
+ *
+ *   LIMIT 2000   edges 2000  chunks 1567  entities reached  6   10.4 ms
+ *   LIMIT 5000   edges 4004  chunks 2577  entities reached 44   12.4 ms
+ *   no LIMIT     edges 4004  chunks 2577  entities reached 44   12.4 ms
+ *
+ * Six of forty-four. The cap cost 38 entities to save 2 ms.
+ *
+ * The absolute worst case is bounded by the collection itself: traversing from
+ * EVERY entity in the graph (2,014 of them) returns all 19,009 edges in 46.8
+ * ms. There is no runaway to protect against at this corpus size, and
+ * downstream is bounded anyway -- rankChunks slices to CHUNK_POOL.
+ *
+ * If je_mentioned_in ever grows by orders of magnitude this needs revisiting,
+ * and the fix then is a per-entity budget (a LIMIT inside a subquery per id),
+ * not a shared one. A shared cap cannot be made fair.
  */
 async function chunksForEntities(keys) {
   if (keys.length === 0) return [];
@@ -224,7 +253,6 @@ async function chunksForEntities(keys) {
     FOR id IN ${ids}
       FOR edge IN je_mentioned_in
         FILTER edge._from == id
-        LIMIT ${CHUNK_POOL * 10}
         RETURN {
           entity_key: PARSE_IDENTIFIER(edge._from).key,
           chunk_id: PARSE_IDENTIFIER(edge._to).key,
@@ -233,6 +261,36 @@ async function chunksForEntities(keys) {
         }
   `);
   return cursor.all();
+}
+
+/**
+ * The TRUE reach of a set of entities: how many mentions they have, and how
+ * many distinct chunks those mentions land in.
+ *
+ * Separate from chunksForEntities because that query is capped at
+ * CHUNK_POOL * 10 edges -- a deliberate bound on the ranking pool, since
+ * ranking beyond a few hundred candidates changes nothing. But the cap also
+ * silently bounded the number the UI reported as "reachable": for a heavily
+ * mentioned entity the count came back at whatever the cap allowed, which made
+ * a ceiling look like a measurement.
+ *
+ * This query has no LIMIT, and returns only two integers. It is what the
+ * "1,770 reachable" style claim now rests on.
+ */
+async function countReachable(keys) {
+  if (keys.length === 0) return { mentions: 0, chunks: 0 };
+  const ids = keys.map((k) => `je_entities/${k}`);
+  const cursor = await db.query(aql`
+    LET touched = (
+      FOR id IN ${ids}
+        FOR edge IN je_mentioned_in
+          FILTER edge._from == id
+          RETURN edge._to
+    )
+    RETURN { mentions: LENGTH(touched), chunks: LENGTH(UNIQUE(touched)) }
+  `);
+  const [row] = await cursor.all();
+  return row ?? { mentions: 0, chunks: 0 };
 }
 
 /**
@@ -249,7 +307,7 @@ function rankChunks(edges, seedKeyByFamilyKey) {
   const byChunk = new Map();
   for (const e of edges) {
     if (!byChunk.has(e.chunk_id)) {
-      byChunk.set(e.chunk_id, { chunk_id: e.chunk_id, seeds: new Set(), mentions: 0, via: [] });
+      byChunk.set(e.chunk_id, { chunk_id: e.chunk_id, seeds: new Set(), mentions: 0, evidence: [] });
     }
     const row = byChunk.get(e.chunk_id);
     // Credit the SEED entity, not the family member: two surface forms of one
@@ -257,7 +315,15 @@ function rankChunks(edges, seedKeyByFamilyKey) {
     // heavily-aliased entities above genuine multi-entity matches.
     row.seeds.add(seedKeyByFamilyKey.get(e.entity_key) ?? e.entity_key);
     row.mentions++;
-    if (row.via.length < 4) row.via.push({ entity_key: e.entity_key, role: e.role, evidence: e.textual_evidence });
+    // Named `evidence`, not `via`: this is the payload carried on each
+    // je_mentioned_in edge -- who was named, in what role, and the words that
+    // said so. `via` previously meant this here and ALSO meant "matched
+    // entities" in the UI label, which is two meanings for one word inside one
+    // object. Capped at 4 because a heavily mentioned entity can hit one chunk
+    // many times, and this is held for CHUNK_POOL chunks at once.
+    if (row.evidence.length < MAX_EVIDENCE_PER_CHUNK) {
+      row.evidence.push({ entity_key: e.entity_key, role: e.role, quote: e.textual_evidence });
+    }
   }
   return [...byChunk.values()]
     .sort((a, b) => b.seeds.size - a.seeds.size || b.mentions - a.mentions || a.chunk_id.localeCompare(b.chunk_id))
@@ -338,7 +404,15 @@ async function resolveGraph(question) {
     }
   }
 
-  const edges = await chunksForEntities([...new Set(allKeys)]);
+  // The pool query and the true-reach count are independent, so they run
+  // together: the pool is capped and feeds ranking, the count is uncapped and
+  // feeds what the UI reports.
+  const uniqueKeys = [...new Set(allKeys)];
+  const [edges, reach] = await Promise.all([
+    chunksForEntities(uniqueKeys),
+    countReachable(uniqueKeys),
+  ]);
+
   return {
     anchored: true,
     index,
@@ -347,6 +421,7 @@ async function resolveGraph(question) {
     categories,
     families,
     edges,
+    reach,
     ranked: rankChunks(edges, seedKeyByFamilyKey),
   };
 }
@@ -354,6 +429,23 @@ async function resolveGraph(question) {
 // The provenance record, built once so both consumers report the traversal the
 // same way. `returned` differs between them (one hydrates k rows, the other
 // nominates a pool), so it is passed in rather than derived.
+/**
+ * The per-chunk provenance record: why this chunk was selected, and the words
+ * on the edges that selected it.
+ *
+ * Shared by retrieveGraph and graphCandidates for the same reason resolveGraph
+ * is shared -- two copies of this would drift, and the two consumers would
+ * then disagree about what the same traversal found.
+ */
+function buildPath(r, nameByKey) {
+  return {
+    matched_entities: [...r.seeds].map((key) => nameByKey.get(key) ?? key),
+    entity_count: r.seeds.size,
+    mention_count: r.mentions,
+    evidence: r.evidence.map((v) => ({ ...v, entity_name: nameByKey.get(v.entity_key) ?? v.entity_key })),
+  };
+}
+
 function buildGraphPath(g, returned) {
   return {
     fallback: false,
@@ -366,7 +458,15 @@ function buildGraphPath(g, returned) {
       coverage: Number(l.coverage.toFixed(2)),
     })),
     families: g.families.map((f) => ({ seed: f.seed.name, variants: f.siblings.map((s) => s.name) })),
-    reachable_chunks: new Set(g.edges.map((e) => e.chunk_id)).size,
+    // From the uncapped count query, not from the capped ranking pool. These
+    // two used to be the same number and they were not the same fact.
+    reachable_chunks: g.reach.chunks,
+    reachable_mentions: g.reach.mentions,
+    // How many of those chunks reached the ranker. Now always equal to
+    // reachable_chunks, since the traversal is uncapped -- kept as a separate
+    // field because it is the number that would diverge first if a cap ever
+    // came back, and a silent divergence is exactly what went wrong before.
+    pool_chunks: new Set(g.edges.map((e) => e.chunk_id)).size,
     returned,
   };
 }
@@ -416,12 +516,7 @@ export async function retrieveGraph(question, k = RETRIEVAL_TOP_K) {
         // No cosine distance exists here: this chunk was not selected by
         // similarity. Null rather than 0, which would read as "perfect match".
         distance: null,
-        path: {
-          matched_entities: [...r.seeds].map((key) => nameByKey.get(key) ?? key),
-          entity_count: r.seeds.size,
-          mention_count: r.mentions,
-          via: r.via.map((v) => ({ ...v, entity_name: nameByKey.get(v.entity_key) ?? v.entity_key })),
-        },
+        path: buildPath(r, nameByKey),
       };
     })
     .filter(Boolean);
@@ -456,6 +551,18 @@ export async function graphCandidates(question, limit) {
       graph_path: { fallback: true, reason: NO_ANCHOR_REASON, link_mode: "none", categories: g.categories, linked_entities: [] },
     };
   }
-  const ids = g.ranked.slice(0, limit).map((r) => r.chunk_id);
-  return { chunk_ids: ids, graph_path: buildGraphPath(g, ids.length) };
+  const top = g.ranked.slice(0, limit);
+  const nameByKey = new Map(g.index.map((e) => [e.key, e.name]));
+
+  // Paths for every nominated chunk, keyed by chunk_id. Hybrid attaches these
+  // to whichever chunks survive fusion.
+  //
+  // Previously this function returned ids alone, so the provenance the
+  // traversal had already computed was discarded at the channel boundary: the
+  // graph strategy could show WHY a chunk was selected and hybrid could not,
+  // even though both ran the identical traversal. Cheap to carry -- these are
+  // already in memory, and only k of them are ever rendered.
+  const paths = new Map(top.map((r) => [r.chunk_id, buildPath(r, nameByKey)]));
+
+  return { chunk_ids: top.map((r) => r.chunk_id), paths, graph_path: buildGraphPath(g, top.length) };
 }

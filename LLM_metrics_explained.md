@@ -306,6 +306,51 @@ while staying precomputable.
 rank order only. That's what lets lists on incomparable score scales combine
 without anyone having to invent weights for them.
 
+### What "invent weights" actually means
+
+Worth spelling out, because it is the whole justification for using rank fusion
+rather than the more obvious thing.
+
+The four channels in `hybridRetriever.js` return numbers that are not
+comparable to each other:
+
+| Channel | Returns | Scale |
+|---|---|---|
+| vector | cosine similarity, e.g. `0.42` | bounded, roughly 0–1 |
+| lexical | BM25 score, e.g. `14.7` | unbounded, and it shifts with query length |
+| density | a count of chunks from one document, e.g. `9` | small integers |
+| graph | hop distance / mention count | small integers, different meaning again |
+
+To fuse by *score* you must first put all four on one scale, and then decide how
+much each one counts:
+
+```
+final = 0.5·vector + 0.2·lexical + 0.2·density + 0.1·graph
+```
+
+Those four coefficients are the invention. There is no principled source for
+them in this project, because fitting weights honestly requires labelled data —
+a set of questions with known-correct passages to optimise against. This project
+deliberately has none (see "What this project actually has" below). So in
+practice the numbers would be guessed and then nudged while watching five or six
+questions, which is tuning to those five or six questions rather than to the
+problem.
+
+Rank fusion sidesteps it. Position 1 means the same thing in every channel, so
+`1/(60 + rank)` needs no scale conversion and no per-channel weight.
+
+**The honest caveat**: the `60` is also a chosen number. It comes from the
+published default in Cormack et al. (2009), and its only real job is to stop the
+top one or two ranks from dominating everything below them. The defensible claim
+is not "no constants" — it is *one* shared constant taken from the literature,
+instead of one tuned knob per channel.
+
+And the reserved slots are, strictly, a weight: half of `RETRIEVAL_TOP_K` is
+guaranteed to plain cosine, which is a hand-set preference for one channel over
+the others. It was added because equal-weight fusion fixed one question and
+broke another in the same change. It is a scar, not a design — and it should be
+described that way rather than dressed up.
+
 Neither of these measures anything. Both change what gets measured. **This
 project has no reranker** — `RETRIEVAL_TOP_K = 8` comes out of the bi-encoder, or
 out of RRF fusion for hybrid, and goes straight into the prompt.
