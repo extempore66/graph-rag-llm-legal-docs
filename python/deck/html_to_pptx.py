@@ -147,6 +147,8 @@ class DeckParser(HTMLParser):
             self.stats = []
             self.stat_v = None
             self.text = []
+        elif tag == "span" and "iow" in cls:
+            self.text.append(IOW)
         elif tag in ("p", "h1", "h2", "h3", "li", "div", "span", "summary"):
             if tag in ("p", "h1", "h2", "h3", "li", "summary") or cls & {
                 "eyebrow", "num", "stage", "kv", "foot", "v", "k"
@@ -299,6 +301,14 @@ def set_bg(slide, color):
     fill.fore_color.rgb = color
 
 
+# Separates a bullet's technical statement from its plain-language restatement.
+# The deck writes the second half as <span class="iow">In other words: ...</span>;
+# the parser drops this marker in so the renderer can split them back apart and
+# set the restatement on its own indented italic line instead of running the two
+# sentences together in one bullet.
+IOW = "\u241f"
+
+
 def textbox(slide, left, top, width, height):
     box = slide.shapes.add_textbox(left, top, width, height)
     tf = box.text_frame
@@ -430,6 +440,10 @@ def est_height(blocks, width_in):
             chars_per_line = max(20, int(width_in * 72 / (size * 0.5)))
             lines = max(1, -(-len(t) // chars_per_line))
             total += lines * (size * 1.3) / 72 + 0.07
+            # A bullet carrying a restatement renders as two paragraphs, so it
+            # costs one more inter-paragraph gap than its length implies.
+            if IOW in t:
+                total += 0.09
     return total
 
 
@@ -448,9 +462,13 @@ def render_text_group(slide, blocks, top, width):
                  bold=True, space_before=0 if first else 12, space_after=2)
         elif b.kind == "bullets":
             for i, it in enumerate(b.items):
-                para(tf, it, first=first and i == 0, size=12, color=INK,
+                main, _, iow = it.partition(IOW)
+                para(tf, main.strip(), first=first and i == 0, size=12, color=INK,
                      bullet=True, space_before=0 if (first and i == 0) else 3,
-                     space_after=3)
+                     space_after=1 if iow.strip() else 3)
+                if iow.strip():
+                    para(tf, iow.strip(), font=SERIF, size=11, color=INK_SOFT,
+                         italic=True, indent=1, space_before=0, space_after=4)
         elif b.kind == "stage":
             para(tf, b.text, first=first, size=12, color=INK,
                  space_before=0 if first else 5, space_after=3)
@@ -507,7 +525,15 @@ def render_slide(prs, s):
 
     if s["title"]:
         title_size = 34 if s["num"] == "00" else 26
-        h = Inches(0.9) if s["num"] == "00" else Inches(0.55)
+        # Height has to follow the wrap, not a constant. A title long enough to
+        # take two lines used to overrun the rule drawn underneath it, and the
+        # rule was painted straight through the second line.
+        if s["num"] == "00":
+            h = Inches(0.9)
+        else:
+            cpl = max(20, int((CONTENT_W / Inches(1)) * 72 / (title_size * 0.56)))
+            lines = max(1, -(-len(s["title"]) // cpl))
+            h = Inches(0.55 * lines)
         box, tf = textbox(slide, MARGIN, y, CONTENT_W, h)
         para(tf, s["title"], first=True, font=SERIF, size=title_size,
              color=INK, bold=True, space_before=0, space_after=0)
