@@ -239,9 +239,11 @@ def build(path):
     line(slide, 500, 594, 500, 624)
 
     # ---- 7. the answer ----------------------------------------------------
-    a = box(slide, 270, 628, 460, 52, fill=CARD2, stroke=RULE)
-    lines_in(a, [("Judge first, then write", SANS, 12, INK, True),
-                 ("is this enough to answer? — if not, say so and stop",
+    a = box(slide, 270, 628, 460, 60, fill=CARD2, stroke=RULE)
+    lines_in(a, [("Judge each passage on its own, then write", SANS, 12, INK, True),
+                 ("one passage per call — never judged as a set",
+                  SANS, 8.5, INK_SOFT, False),
+                 ("if none of them helps, say so and stop",
                   SANS, 8.5, INK_SOFT, False)])
 
     # ---- speaker notes ----------------------------------------------------

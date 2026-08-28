@@ -1,0 +1,128 @@
+config: qwen3:8b|k=8|prefix=off|expand=true|answer=two-phase
+answer path: two-phase (judge each passage, then write) -- what the server runs
+questions: 35  strategies: naive, hybrid, graph
+already recorded: 117 row(s) in /Users/budubasa/Documents/N_Claude_Projects/arango_graph_rag_llm/node/eval/results/runs.jsonl
+
+[SF-01] naive   64980ms  cites 5/8  answered  docs: 1330.1_1, 1335.4_1, 1330.4_1
+[SF-01] hybrid  73579ms  cites 6/8  answered  docs: 1330.1_1, 1335.4_1, 1330.4_1
+[SF-01] graph   62187ms  cites 8/8  answered  docs: 1326.1_2, 1327.28_3, 1335.4_1
+[SF-02] naive   48305ms  cites 8/8  answered  docs: 1326.0_1, 1322.0_2, 1327.19_1
+[SF-02] hybrid  52476ms  cites 6/8  answered  docs: 1326.0_1, 1322.0_2, 1327.19_1
+[SF-02] graph   46841ms  cites 2/8  answered  docs: 1327.4_1, 1325.1_1, 1327.19_1
+[SF-03] naive   34539ms  cites 4/8  answered  docs: 1324.0, 1323.0_1, 1325.0_1
+[SF-03] hybrid  48564ms  cites 4/8  answered  docs: 1324.0, 1323.0_1, 1325.0_1
+[SF-03] graph   31125ms  cites 0/8  REFUSED  docs: 1328.41, 1327.19_1, 1328.18
+[SF-04] naive   64861ms  cites 4/8  answered  docs: 1328.32, 1326.4_3, 1328.29
+[SF-04] hybrid  77659ms  cites 4/8  answered  docs: 1328.32, 1326.4_3, 1328.29
+[SF-04] graph   56846ms  cites 4/8  answered  docs: 1335.7_1, 1326.3_1, 1326.4_3
+[SF-05] naive   52242ms  cites 6/8  answered  docs: 1332.12, 1327.5_1, 1328.8
+[SF-05] hybrid  63168ms  cites 6/8  answered  docs: 1332.12, 1327.5_1, 1328.8
+[SF-05] graph   26955ms  cites 0/8  REFUSED  docs: 1328.5_1, 1330.15_1, 1330.16_1
+[VN-01] naive   57477ms  cites 1/8  answered  docs: 1328.30, 1328.12, 1328.44_2
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 2352 (line 1 column 2353)
+[VN-01] hybrid  73656ms  cites 1/8  answered  docs: 1328.30, 1328.12, 1328.44_2
+[VN-01] graph   26001ms  cites 0/8  REFUSED  docs: 1326.1_2, 1331.13, 1331.16
+[VN-02] naive   27516ms  cites 0/8  REFUSED  docs: 1335.7_1, 1327.26_1, 1335.6_1
+[VN-02] hybrid  36507ms  cites 0/8  REFUSED  docs: 1335.7_1, 1327.26_1, 1335.6_1
+[VN-02] graph   27507ms  cites 0/8  REFUSED  docs: 1335.7_1, 1327.26_1, 1335.6_1
+[VN-03] naive   58254ms  cites 3/8  answered  docs: 1332.10, 1325.18, 1331.27
+[VN-03] hybrid  60017ms  cites 5/8  answered  docs: 1332.10, 1325.18, 1328.4_1
+[VN-03] graph   59697ms  cites 1/8  answered  docs: 1325.12_3, 1325.14_1, 1325.3_4
+[VN-04] naive   68949ms  cites 5/8  answered  docs: 1328.22_1, 1328.21
+[VN-04] hybrid  80650ms  cites 6/8  answered  docs: 1328.22_1, 1328.21
+[VN-04] graph   63651ms  cites 4/8  answered  docs: 1328.22_1, 1322.1_4, 1326.1_2
+[VN-05] naive   56729ms  cites 2/8  answered  docs: 1332.10, 1331.13, 1330.16_1
+[VN-05] hybrid  65971ms  cites 2/8  answered  docs: 1332.10, 1332.1, 1330.16_1
+[VN-05] graph   56739ms  cites 2/8  answered  docs: 1332.10, 1331.13, 1330.16_1
+[MH-01] naive   63389ms  cites 7/8  answered  docs: 1332.8_1, 1332.16
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 2051 (line 1 column 2052)
+[MH-01] hybrid  84469ms  cites 8/8  answered  docs: 1332.8_1, 1332.16, 1331.30
+[MH-01] graph   56528ms  cites 8/8  answered  docs: 1332.8_1, 1334.1, 1331.30
+[MH-02] naive   58632ms  cites 8/8  answered  docs: 1330.7_1, 1326.1_2, 1335.6_1
+[MH-02] hybrid  64847ms  cites 8/8  answered  docs: 1330.7_1, 1326.1_2, 1335.6_1
+[MH-02] graph   45626ms  cites 5/8  answered  docs: 1328.30, 1325.1_1, 1325.19_1
+[MH-03] naive   52840ms  cites 6/8  answered  docs: 1332.11, 1331.27, 1327.9
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 2331 (line 1 column 2332)
+[MH-03] hybrid  77881ms  cites 4/8  answered  docs: 1332.11, 1331.27, 1327.9
+[MH-03] graph   56753ms  cites 8/8  answered  docs: 1328.24, 1327.6, 1331.19
+[MH-04] naive   61186ms  cites 5/8  answered  docs: 1331.11, 1331.7, 1335.6_1
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 2002 (line 1 column 2003)
+[MH-04] hybrid  80832ms  cites 6/8  answered  docs: 1331.11, 1331.7, 1335.6_1
+[MH-04] graph   50820ms  cites 7/8  answered  docs: 1326.1_2, 1335.1_2, 1335.4_1
+[MH-05] naive   51878ms  cites 4/8  answered  docs: 1327.12, 1327.16_1, 1335.2_1
+[MH-05] hybrid  65664ms  cites 5/8  answered  docs: 1327.12, 1327.16_1, 1335.2_1
+[MH-05] graph   52154ms  cites 4/8  answered  docs: 1327.12, 1327.16_1, 1335.2_1
+[AG-01] naive   68550ms  cites 3/8  answered  docs: 1328.28, 1327.18_1, 1327.15_1
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 2269 (line 1 column 2270)
+[AG-01] hybrid  73460ms  cites 5/8  answered  docs: 1328.28, 1327.18_1, 1327.15_1
+[AG-01] graph   54544ms  cites 8/8  answered  docs: 1328.9, 1330.1_1, 1330.4_1
+[AG-02] naive   96678ms  cites 6/8  answered  docs: 1328.28, 1328.17, 1331.11
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 2327 (line 1 column 2328)
+[AG-02] hybrid  90521ms  cites 5/8  answered  docs: 1328.28, 1328.17, 1331.11
+[AG-02] graph   53562ms  cites 7/8  answered  docs: 1328.19, 1326.1_2, 1327.24
+[AG-03] naive   61852ms  cites 7/8  answered  docs: 1327.14, 1327.2, 1327.18_1
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 2329 (line 1 column 2330)
+[AG-03] hybrid  84920ms  cites 8/8  answered  docs: 1327.14, 1327.2, 1327.18_1
+[AG-03] graph   68635ms  cites 8/8  answered  docs: 1328.41, 1327.19_1, 1328.18
+[AG-04] naive   59965ms  cites 3/8  answered  docs: 1327.15_1, 1330.14_1, 1326.3_1
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 2285 (line 1 column 2286)
+[AG-04] hybrid 174264ms  cites 2/8  answered  docs: 1327.15_1, 1330.14_1, 1326.3_1
+[AG-04] graph   59923ms  cites 3/8  answered  docs: 1327.15_1, 1330.14_1, 1326.3_1
+[AG-05] naive   60215ms  cites 7/8  answered  docs: 1326.3_1, 1326.4_3, 1328.5_1
+[AG-05] hybrid  65381ms  cites 8/8  answered  docs: 1326.3_1, 1326.4_3, 1328.5_1
+[AG-05] graph   57975ms  cites 7/8  answered  docs: 1326.3_1, 1326.4_3, 1328.5_1
+[ER-01] naive   53134ms  cites 5/8  answered  docs: 1335.2_1, 1327.13, 1327.2
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 2386 (line 1 column 2387)
+[ER-01] hybrid  74010ms  cites 5/8  answered  docs: 1335.2_1, 1327.13, 1327.2
+[ER-01] graph   53266ms  cites 8/8  answered  docs: 1330.9_1, 1322.1_4, 1325.1_1
+[ER-02] naive   56345ms  cites 8/8  answered  docs: 1327.19_1, 1330.23_1, 1330.3_2
+[ER-02] hybrid  63737ms  cites 8/8  answered  docs: 1327.19_1, 1330.23_1, 1330.3_2
+[ER-02] graph   54969ms  cites 8/8  answered  docs: 1328.6_1, 1325.2_4, 1326.4_3
+[ER-03] naive   44341ms  cites 8/8  answered  docs: 1331.8, 1330.18_1, 1327.14
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 1814 (line 1 column 1815)
+[ER-03] hybrid  67892ms  cites 8/8  answered  docs: 1331.8, 1330.18_1, 1327.14
+[ER-03] graph   58273ms  cites 8/8  answered  docs: 1331.35, 1327.13, 1331.19
+[ER-04] naive   53973ms  cites 7/8  answered  docs: 1335.2_1, 1328.5_1, 1327.13
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 1866 (line 1 column 1867)
+[ER-04] hybrid  75612ms  cites 7/8  answered  docs: 1335.2_1, 1328.5_1, 1327.13
+[ER-04] graph   50154ms  cites 8/8  answered  docs: 1330.21_1, 1328.5_1, 1330.15_1
+[ER-05] naive   59170ms  cites 8/8  answered  docs: 1331.7, 1328.36, 1330.16_1
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 2589 (line 1 column 2590)
+[ER-05] hybrid  77838ms  cites 8/8  answered  docs: 1331.7, 1328.36, 1330.16_1
+[ER-05] graph   58384ms  cites 8/8  answered  docs: 1331.9, 1332.16, 1335.1_2
+[CC-01] naive   59865ms  cites 8/8  answered  docs: 1327.2, 1327.14, 1327.15_1
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 2395 (line 1 column 2396)
+[CC-01] hybrid  77191ms  cites 8/8  answered  docs: 1327.2, 1327.14, 1327.15_1
+[CC-01] graph   59747ms  cites 8/8  answered  docs: 1327.2, 1327.14, 1327.15_1
+[CC-02] naive   62887ms  cites 7/8  answered  docs: 1331.25, 1328.4_1, 1325.4_1
+[CC-02] hybrid  62312ms  cites 7/8  answered  docs: 1331.25, 1328.4_1, 1325.4_1
+[CC-02] graph   62937ms  cites 7/8  answered  docs: 1331.25, 1328.4_1, 1325.4_1
+[CC-03] naive   55808ms  cites 6/8  answered  docs: 1325.5_2, 1331.11, 1331.15
+[CC-03] hybrid 144893ms  cites 7/8  answered  docs: 1325.5_2, 1331.11, 1331.15
+[CC-03] graph   58091ms  cites 8/8  answered  docs: 1331.11, 1328.4_1, 1328.5_1
+[CC-04] naive   55853ms  cites 2/8  answered  docs: 1327.14, 1327.15_1, 1327.16_1
+[CC-04] hybrid  65129ms  cites 2/8  answered  docs: 1327.14, 1327.15_1, 1327.16_1
+[CC-04] graph   53967ms  cites 2/8  answered  docs: 1327.14, 1327.15_1, 1327.16_1
+[CC-05] naive   42791ms  cites 7/8  answered  docs: 1332.2, 1331.35, 1330.15_1
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 2333 (line 1 column 2334)
+[CC-05] hybrid  66549ms  cites 7/8  answered  docs: 1332.2, 1331.35, 1330.15_1
+[CC-05] graph   42780ms  cites 7/8  answered  docs: 1332.2, 1331.35, 1330.15_1
+[AB-01] naive   25580ms  cites 0/8  REFUSED  docs: 1331.11, 1335.5_1, 1328.28
+[skip] AB-01 hybrid
+[AB-01] graph   25574ms  cites 0/8  REFUSED  docs: 1331.11, 1335.5_1, 1328.28
+[AB-02] naive   26392ms  cites 0/8  REFUSED  docs: 1330.6_1, 1330.15_1, 1328.10
+[skip] AB-02 hybrid
+[AB-02] graph   51169ms  cites 1/8  answered  docs: 1328.19, 1326.1_2, 1327.24
+[AB-03] naive   26106ms  cites 0/8  REFUSED  docs: 1332.10, 1327.19_1, 1327.10_1
+[hybrid] query expansion failed, lexical falls back to the raw question: Unterminated string in JSON at position 1858 (line 1 column 1859)
+[AB-03] hybrid  46213ms  cites 0/8  REFUSED  docs: 1332.10, 1327.19_1, 1327.10_1
+[AB-03] graph   23430ms  cites 0/8  REFUSED  docs: 1332.10, 1327.19_1, 1327.10_1
+[AB-04] naive   28615ms  cites 0/8  REFUSED  docs: 1335.4_1, 1330.3_2, 1331.29
+[AB-04] hybrid  37157ms  cites 0/8  REFUSED  docs: 1335.4_1, 1330.3_2, 1331.3
+[AB-04] graph   25859ms  cites 0/8  REFUSED  docs: 1328.6_1, 1335.4_1, 1335.6_1
+[AB-05] naive   57122ms  cites 1/8  answered  docs: 1327.28_3, 1325.9_3, 1335.1_2
+[AB-05] hybrid  65424ms  cites 1/8  answered  docs: 1327.28_3, 1325.9_3, 1335.1_2
+[AB-05] graph   24406ms  cites 0/8  REFUSED  docs: 1335.4_1, 1322.1_4, 1325.1_1
+
+Done. Rows in /Users/budubasa/Documents/N_Claude_Projects/arango_graph_rag_llm/node/eval/results/runs.jsonl.
+Grade by filling human_correct / human_notes, then summarise per stratum.

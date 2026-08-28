@@ -49,9 +49,10 @@ structural, not a better prompt. Backup slide B2 covers it.
 represented by counsel?
 **Strategy:** `hybrid` · **Status:** verified
 
-> **Do not ask "Who were the defense attorneys in this case?"** — the phrasing
-> matters and this one fails. Same retrieval, same passage at slot 1, but the
-> sufficiency judge refuses it. Measured below.
+**Q (alternate wording).** Who were the defense attorneys in this case?
+Both wordings now work. The past-tense form used to be refused; the cause and
+the fix are below, and the story is worth telling if the panel asks how you
+find bugs like this.
 
 The follow-up is the strong beat. The answer reads as implausible — a defense
 attorney with his own attorneys — and the system explains it correctly from the
@@ -115,29 +116,43 @@ LLM call, which succeeded on this question.
 Say out loud: *four slots are reserved for plain similarity so fusion can never
 subtract. The answer came from one of the four it added.*
 
-### The phrasing trap — worth knowing, possibly worth showing
+### The bug this question exposed — worth showing on purpose
 
-Asked as **"Who were the defense attorneys in this case?"** the system refuses,
-and the refusal is wrong. Measured:
+Asked as **"Who were the defense attorneys in this case?"**, the system used to
+refuse, and the refusal was wrong. The answering passage was never missing:
 
 | | |
 |---|---|
 | Answering passage | `1335.3_1` p.5 — *"MS. BORJA: Mary Borja for Defendant, Alan Dershowitz."* |
 | Where retrieval put it | **slot 1**, `vector#1 reserved` — every strategy, every run |
-| Verdict at k=8 | `sufficient=false`, zero sources cited |
-| Verdict at k=2 | `sufficient=true` — same passage, fewer neighbours |
+| Old verdict at k=8 | `sufficient=false`, zero sources cited |
+| Old verdict at k=2 | `sufficient=true` — same passage, fewer neighbours |
 
-The evidence is a courtroom **appearance line**, not a sentence saying "the
-defense attorneys were X". The judge wants the passage to answer in the
-question's own vocabulary, and refuses when it does not.
+Retrieval was never at fault. The **judging** step was. It read all eight
+passages in one call and returned a yes/no per passage, which looks independent
+but is not: drop one unrelated passage from the eight and the verdict on slot 1
+flipped to true. Swap that passage for a different unrelated one and it flipped
+back. The judgement on slot 1 was a function of the other seven the whole time.
 
-This is the other side of the abstention fix. Two-phase generation cured
-over-generation and bought **over-refusal** in exchange — and the eval measured
-the first without ever measuring the second.
+The tense was a red herring. Holding the retrieved set fixed, "who were" and
+"who are" give the **same** verdict — changing the wording only moved the query
+embedding, which changed three of the eight neighbours.
 
-If the panel is engaged, this is worth showing on purpose: a system you can make
-fail deliberately, with a named cause, reads better than one that only ever
-works.
+**The fix:** judge each passage on its own, one call per passage, each call
+seeing exactly one passage. Nothing else changed — same retrieval, same fusion,
+same answer writer. Cost is eight small calls instead of one large one, and it
+came out slightly *faster* (26.3s vs 28.9s) because each call generates a
+handful of tokens instead of a paragraph.
+
+Both wordings answer correctly now, and all four "should refuse" questions
+still refuse.
+
+Two things worth saying out loud:
+
+1. The instinct was to blame retrieval, or the user's phrasing. Both were
+   wrong, and the way to find that out was to hold one variable fixed at a time.
+2. The eval measured over-generation and never measured over-refusal. The
+   two-phase split cured the first and quietly bought the second.
 
 ---
 

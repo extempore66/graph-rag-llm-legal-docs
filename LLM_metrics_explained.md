@@ -414,3 +414,104 @@ LLM as judge. That's fast, cheap and genuinely useful, but the measurement
 inherits the judge model's blind spots — and two systems can end up ranked
 against one model's reading of the evidence rather than against the evidence.
 Worth knowing before treating any of their output as ground truth.
+
+
+
+
+* THE FUSION MODULE ON ITS OWN - DETAILS 
+
+The fusion stage, on its own
+
+What arrives
+
+Four ranked lists of passage IDs. Nothing else — the scores each channel computed are thrown away at the door.
+
+┌─────────┬────────────────────────────────────────────────────┬─────────────┐
+│ Channel │                     Ranked by                      │ List length │
+├─────────┼────────────────────────────────────────────────────┼─────────────┤
+│ vector  │ cosine distance to the question                    │ 50          │
+├─────────┼────────────────────────────────────────────────────┼─────────────┤
+│ density │ how many of a document's passages made the top 100 │ 50          │
+├─────────┼────────────────────────────────────────────────────┼─────────────┤
+│ lexical │ BM25 on the widened query                          │ 50          │
+├─────────┼────────────────────────────────────────────────────┼─────────────┤
+│ graph   │ passages reached by traversing from linked names   │ 50          │
+└─────────┴────────────────────────────────────────────────────┴─────────────┘
+
+The scores are discarded on purpose. A cosine distance of 0.31, a BM25 score of 14.2, and a count of 6 chunks are three different units. To combine the numbers you'd have to pick multipliers that make them comparable, and there's no measurement that tells you what those multipliers should be. Ranks are already comparable: #3 means #3 in every list.
+
+The rule
+
+For each passage d, add up one term per list it appears in:
+
+score(d) = Σ  1 / (60 + rank_c(d))
+          c ∈ channels d appears in
+
+rank_c(d) is 1-based. Sort by score, highest first. That's the whole calculation — hybridRetriever.js:150.
+
+The 60 is RRF_K, from Cormack et al. 2009. It's a constant, not something I tuned.
+
+Why 60 and not zero
+
+Without it the formula is 1/rank, so rank 1 scores 1.0 and rank 2 scores 0.5. Any channel's top hit would flatten everything else, and fusion would just be "whichever channel is loudest wins."
+
+Adding 60 squashes the top of the curve almost flat:
+
+┌──────┬─────────────┐
+│ rank │ 1/(60+rank) │
+├──────┼─────────────┤
+│ 1    │ 0.01639     │
+├──────┼─────────────┤
+│ 2    │ 0.01613     │
+├──────┼─────────────┤
+│ 10   │ 0.01429     │
+├──────┼─────────────┤
+│ 50   │ 0.00909     │
+└──────┴─────────────┘
+
+The gap between #1 and #2 is 1.6%. The gap between #1 and #50 is only about 1.8×. So one appearance never dominates, and the thing that actually moves a passage up is appearing in more than one list.
+
+That's provable here, because the lists are 50 long. The worst possible two-list showing is rank 50 in both:
+
+2 × 1/110 = 0.01818   >   1/61 = 0.01639   (best possible one-list showing)
+
+Being last in two channels beats being first in one. That is the entire behaviour the formula is bought for.
+
+In plain terms
+
+Four searchers each hand you their top 50, in order. You don't ask how confident anyone is — you can't compare their confidence anyway. You give each passage a small number of points based on how near the top of a list it sits, points from different lists add up, and being on two lists at all is worth more than topping one.
+
+The Khalil passage, actually worked
+
+The one that answers "obiter dicta" without the word appearing anywhere in the corpus:
+
+vector ranked it #21     1/(60+21) = 0.01235
+density ranked it  #3    1/(60+ 3) = 0.01587
+lexical, graph: absent            = 0
+                          ─────────────────
+                            score = 0.02822
+
+A passage sitting at vector #6 and nowhere else scores 1/66 = 0.01515. So the Khalil passage outscores it by nearly 2× despite being fifteen places worse on similarity. Density is what carried it — its document had the most passages in the pool, which is a signal cosine has no way to express.
+
+It landed in slot 8 of 8. Vector-only would have needed a top-21 to find it.
+
+The reserved slots
+
+This happens before fusion, not inside it:
+
+const reserved = Math.floor(k / 2);          // 4 of 8
+const guaranteed = vectorIds.slice(0, reserved);
+
+Vector's top 4 take slots 1–4 unconditionally. Fusion runs over all four lists, drops anything already reserved, and fills slots 5–8.
+
+The reason is a measured regression, not a design. Equal-weight fusion across all 8 slots fixed the obiter question and simultaneously broke "who is Alfredo Rodriguez" — the deposition that answers it is cosine #3, but density ranks its document #12, and density outvoted the channel that was right. Vector and density both read the same embedding search, so they aren't independent voters; equal weighting assumes they are.
+
+Reserving half makes hybrid strictly additive: it can add what the other channels find, never remove what plain similarity already had. It is a weight — I'll say so if asked. It's just the one weight I measured a reason for instead of guessing at.
+
+What this is not
+
+There is no reranker in this system. A reranker takes retrieved passages and re-scores their text against the question with a second model. Nothing here does that. Fusion never reads a passage — it only reads four lists of positions. The word "rerank" would describe a stage that doesn't exist.
+
+---
+
+I'll report the eval numbers when the run finishes. One thing already visible from the smoke test: AB-02 ("What sentence did the court impose on Jeffrey Epstein?") answered under the new judge instead of refusing. If that holds across the run, the per-passage judge has traded some abstention back for the recall it bought — which is the number slide B2 needs and doesn't have yet.
