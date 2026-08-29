@@ -1,8 +1,9 @@
 # Future Roadmap
 
-Forward-looking notes, captured 2026-08-22 while the final full-corpus run was
-executing. Nothing here is committed work — it is the reasoning behind possible
-directions, recorded so the *why* survives.
+Forward-looking notes. Sections 1-6 were captured 2026-08-22 while the final
+full-corpus run was executing; sections 7-8 were added 2026-08-29. Each section
+carries its own date. Nothing here is committed work — it is the reasoning behind
+possible directions, recorded so the *why* survives.
 
 ---
 
@@ -157,3 +158,128 @@ the four prompt amendments were.
 Answering the *wrong* question while the corpus does contain the right answer.
 That is an answer-relevance problem rather than an abstention one, and nothing
 above addresses it.
+
+## 7. Incremental ingestion — adding filings to a matter already loaded
+
+Captured 2026-08-29, prompted by a direct question about automating this.
+
+**The first thing to correct is a claim made on the presentation deck.** Slide 08
+said, in effect, that adding one filing means rebuilding the whole graph, and
+that is too pessimistic. The 19.8 hours spent on Steps 4-6 built 2,014 entities
+from nothing, so almost every one of 19,009 mentions arrived with no prior graph
+to match against and triggered an LLM judgment call. A single new filing carries
+roughly a hundred mentions against a fixed set of ~2,014 existing entities: about
+200,000 Jaro-Winkler comparisons, which is milliseconds, and perhaps sixty LLM
+calls. The incremental case is minutes. What is genuinely unsolved is narrower
+than "rebuilding", and is described below.
+
+**The pipeline splits into three phases with different concurrency rules.**
+Phase A — chunk, embed, extract, write `je_raw_extractions` — is per-document and
+embarrassingly parallel, because it shares no state. Phase B, entity resolution,
+must be serialised *per matter*: two workers processing two filings would each
+find no existing "Mr. Recarey" and each create one. `dedupBatchRunner.js` already
+takes a per-name lock for exactly this reason, so the change is to widen the
+scope rather than to invent the mechanism. Phase C is new, and is the real work.
+
+**Documents must be keyed on their contents, not their filename.** Courts re-file
+corrected versions of the same document constantly, and a docket number tells you
+nothing about whether the bytes have been seen before. A content hash makes
+re-ingestion idempotent, which matters more than it sounds: an automated watcher
+over a docket feed will re-present the same file, and a pipeline that cannot
+recognise it will duplicate every entity in it.
+
+**Phase C is a backwards sweep, and it is the piece that does not exist today.**
+The graph may hold `V. Roberts` and `Virginia Giuffre` as two separate people
+because nothing in the corpus ever connected them. A new filing reading "Virginia
+Roberts Giuffre, formerly known as Virginia Roberts" should merge them, and
+nothing in the current design ever revisits an existing entity. The sweep re-runs
+candidate generation for the entities a batch *created or touched*, against the
+existing graph — cost proportional to the delta, not the total. The same pass
+should re-examine the 413 rows in `je_possible_duplicates`, since new evidence can
+settle an old "unsure" and at present nothing ever looks at them again.
+
+**Merges are cheap here only because identity is an edge.** The architecture never
+collapses two nodes into one; it links them and expands the family at query time.
+A retroactive merge is therefore a single edge insert, whatever the entity's
+history — rather than finding every `je_mentioned_in` edge pointing at the loser,
+rewriting it, and deleting the node. Three consequences follow, and they are the
+argument for the design: merging is O(1), it is reversible by deleting the edge,
+and no mention is ever rewritten, so the original resolution decision stays
+auditable. A destructive merge has none of those properties.
+
+**Three things stay genuinely hard.** *Order dependence*: whichever spelling loads
+first becomes the node's stored name, so `Det. Recarey` can end up canonical by
+accident — fixable by choosing the family's best name at query time instead of
+storing a winner. *Non-determinism*: the same documents loaded in a different
+order produce a slightly different graph, which is uncomfortable for a system
+producing legal evidence, and the answer is to log each resolution decision with
+its inputs so a result can be *explained* rather than merely reproduced.
+*Cascades*: merging A with B can make the combined family match C, and chasing a
+fixed point is how one node ends up swallowing the graph — one pass, then flag.
+
+**Operationally this wants a queue rather than a script:** per-document jobs,
+retry with backoff, and one unreadable PDF that cannot stall an entire matter.
+Chunk-level resumability already exists (`dedup_processed`), so a crashed job
+resumes rather than restarting. For court filings specifically the RECAP/PACER
+API means a docket can be watched, rather than waiting for someone to drop files
+into a folder.
+
+## 8. Onboarding a new matter, or a different kind of corpus
+
+Captured 2026-08-29, same conversation. A different problem from section 7, and
+the hard part is not compute.
+
+**Isolation is a requirement before it is a feature.** Two matters will both
+contain a John Smith and they are not the same man, so name resolution must be
+scoped to the matter and must never look across the boundary. This is not only a
+correctness concern: matters carry ethical walls, and one client's data appearing
+in another client's graph is a serious professional problem rather than a bug
+report. Any design that relies on every future query remembering to include a
+filter has put a legal requirement in the hands of whoever writes the next AQL.
+
+**A database per matter is the safer default, and it is a real trade rather than
+an obvious call.** It buys hard isolation and makes closing an engagement a single
+`dropDatabase` — which is a retention requirement in this domain, not a
+convenience. It costs cross-matter queries and leaves several hundred databases to
+administer. The alternative, one database with the matter as a SmartGraph shard
+key, keeps cross-matter questions available and turns deletion into a large
+filtered delete. The tie-breaker is that the isolation requirement here is ethical,
+and requirements of that kind should not rest on a `WHERE` clause.
+
+**Cross-matter people need a separate, curated registry.** The same expert witness
+appears in thirty cases, as does the same opposing firm, and a firm genuinely
+wants to see that. The shape is two-level: per-matter entities stay isolated, and
+a small firm-wide roster holds the people tracked across matters, linked outward
+from each matter's own node. *Curated* is load-bearing — that link is a decision a
+person makes, never an automatic merge, because an automatic one would breach
+exactly the isolation the previous point exists to protect.
+
+**Settings belong to the corpus, not to the environment.** Chunk separators,
+`entity_types`, `JARO_WINKLER_THRESHOLD`, `SNIPPET_WINDOW_WORDS`, and whether
+Step 7 coreference runs at all are properties of the material being ingested.
+Deposition transcripts and markdown product documentation want different values
+for most of them. Today these are environment variables and therefore global,
+which is fine for one corpus and wrong for many. This is the presentation's own
+argument turned into a config file: if the kind of documents decides the approach,
+the pipeline should take the kind of documents as a parameter.
+
+**Calibrate before committing, and quote the cost first.** For a new corpus there
+is no reason to believe 0.85 is the right threshold. The bootstrap is: ingest a
+sample, run candidate generation at several thresholds, have a person label about
+a hundred pairs, then fix the threshold and record it *with the corpus*. Cost can
+be projected the same way, since LLM call count scales with mentions that have
+candidates — which means someone can be told "this will take nine hours" before
+they start rather than after.
+
+**The trap, and it is the single most important line in both sections. A sample
+predicts cost. It does not predict correctness.** The unsorted-slice defect that
+produced 38 separate "Mr. Barton" nodes — 9.6% of the graph — could not have
+appeared in the 200-chunk test run, because it only triggers once enough names
+clear the similarity threshold to crowd out the true match, and at ~220 entities
+too few did. Onboarding a new corpus therefore needs an audit of the *full* first
+run, not a sample check: sort entities by name similarity and read the top few
+hundred clusters. That is an afternoon of work, and it is the step that catches
+the class of defect that only exists at scale. Both of the worst bugs in this
+build were library defaults behaving reasonably — case-sensitive comparison, and
+slicing an unsorted list — and neither was visible by reading the code while both
+were obvious in the output.
