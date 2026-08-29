@@ -302,10 +302,12 @@ def set_bg(slide, color):
 
 
 # Separates a bullet's technical statement from its plain-language restatement.
-# The deck writes the second half as <span class="iow">In other words: ...</span>;
-# the parser drops this marker in so the renderer can split them back apart and
-# set the restatement on its own indented italic line instead of running the two
-# sentences together in one bullet.
+# The deck writes the second half as <span class="iow">...</span>; the parser
+# drops this marker in so the renderer can split them back apart and set the
+# restatement on its own indented italic line instead of running the two
+# sentences together in one bullet. The restatement carries no lead-in phrase --
+# the indent and the italic already say what it is, and spelling it out on every
+# bullet reads as padding.
 IOW = "\u241f"
 
 
