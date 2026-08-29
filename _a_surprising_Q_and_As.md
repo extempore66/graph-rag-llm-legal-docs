@@ -53,6 +53,7 @@ Why density is the hero
 
 One sentence answer: Simple chunk ranking ignored the relevant chunks and document(s). Density - the presence of multiple relevant chunks in a document - 
                      flagged that document as interesting. One of the channels of the 4 channels in fusion brought it up among the top 8 chunks overall.
+                     Density of candidate chunks within a document is only possible with a Graph System!
 
 Three of the four fused slots come from one document: 1332.10, an oral-argument transcript. That's density doing exactly what it exists for — it noticed that this single transcript had more chunks in the candidate pool than any other, and concluded the document was about the subject even though no individual passage scored especially well.
 

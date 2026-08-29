@@ -12,6 +12,43 @@ were opened in a real browser, which the bot filter allows. **The pipeline,
 parameter, and retrieval sections below are now quoted from ArangoDB's own
 documentation.** Where something remains inference, it says so explicitly.
 
+## Rule for using this document
+
+Added 2026-08-29, after an audit found the presentation deck had drifted past
+what this file supports.
+
+**Every claim made about ArangoDB's product, anywhere — a slide, a note, a
+conversation — either quotes this document's documented findings, or says out
+loud that it is inference.** There is no third category, and "it follows
+obviously" is not one.
+
+The audit found five drifts, and they are worth listing because none of them
+felt like a fabrication while being written:
+
+1. `partition_id` was asserted on a slide as a SmartGraph parameter. **It does
+   not exist.** The real mechanism is `smartGraphAttribute`; `partition_id` was
+   a placeholder name that hardened into a product feature over a few edits.
+2. "Every answer cites the page it came from" — page-level citation is *ours*.
+   Theirs is a `citable_url` per file and "document references".
+3. "Global Search is the one nobody else ships" — unsourced, and contradicted by
+   the same deck's own row for Microsoft GraphRAG, where the technique was
+   published.
+4. "There is no name to start from" — a property of *our* graph retriever,
+   printed as a property of theirs. Their entities are nodes with embeddings.
+5. "Their corpus is documentation" — this file explicitly flags that as
+   inference from the tooling, and notes their stated target is broader. The
+   slide stated it flat.
+
+The pattern is the same every time: a real finding, generalised one step too far
+in the direction of a cleaner story. That is the failure mode to watch for here,
+not invention.
+
+**What is unknown and should be said as unknown.** Their entity nodes carry
+embeddings — that is one clause in the Technical Overview and it is the whole of
+what is documented. What text is embedded (name? description? both?), which
+model, and how those vectors are used at query time are all unstated. Any claim
+about how Local Search selects its starting entity is guesswork.
+
 ## The pipeline
 
 Their Technical Overview states the workflow in four steps:
