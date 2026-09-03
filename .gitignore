@@ -36,3 +36,8 @@ _project_architecture_considerations.md
 _project_step_by_step_plan.md
 _step3_extraction_reference.md
 presos/*.mov
+
+# HTML working docs under presos containing "interview" -- the deck source
+# (interview-deck.html), kept local only. The .pptx/.pdf exports are the
+# actual deliverable and stay tracked.
+presos/*interview*.html

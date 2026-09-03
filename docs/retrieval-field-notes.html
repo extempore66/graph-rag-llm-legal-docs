@@ -1,0 +1,1134 @@
+<title>Four Channels, Step by Step</title>
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap");
+
+/* Same token system as v1 -- deliberately identical so the two can sit side by
+   side and only the CONTENT differs, never the reading conditions. */
+:root {
+  --ground:     #f6f7f9;
+  --surface:    #ffffff;
+  --surface-2:  #eef1f4;
+  --ink:        #16202b;
+  --ink-soft:   #566472;
+  --ink-faint:  #8b97a3;
+  --rule:       #dce1e7;
+  --rule-soft:  #e8ecf0;
+  --accent:     #1f4e79;
+  --accent-bg:  #eaf0f6;
+  --flag:       #8c3a2b;
+  --flag-bg:    #f7edea;
+  --code-bg:    #eef1f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:    #0f141a;
+    --surface:   #161d25;
+    --surface-2: #1d262f;
+    --ink:       #dce3ea;
+    --ink-soft:  #9aa8b5;
+    --ink-faint: #6b7885;
+    --rule:      #2a343e;
+    --rule-soft: #212a33;
+    --accent:    #82b2dd;
+    --accent-bg: #17242f;
+    --flag:      #d9917f;
+    --flag-bg:   #2a1e1b;
+    --code-bg:   #1d262f;
+  }
+}
+:root[data-theme="dark"] {
+  --ground:    #0f141a;
+  --surface:   #161d25;
+  --surface-2: #1d262f;
+  --ink:       #dce3ea;
+  --ink-soft:  #9aa8b5;
+  --ink-faint: #6b7885;
+  --rule:      #2a343e;
+  --rule-soft: #212a33;
+  --accent:    #82b2dd;
+  --accent-bg: #17242f;
+  --flag:      #d9917f;
+  --flag-bg:   #2a1e1b;
+  --code-bg:   #1d262f;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 1.5rem 6rem;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 3.5rem;
+}
+@media (min-width: 1000px) {
+  .shell { grid-template-columns: 15rem minmax(0, 1fr); }
+  .masthead { grid-column: 1 / -1; }
+}
+
+.masthead {
+  padding: 4.5rem 0 2.25rem;
+  border-bottom: 2px solid var(--ink);
+  margin-bottom: 2.5rem;
+}
+.eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: .72rem;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 1rem;
+}
+.masthead h1 {
+  font-family: Newsreader, Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  font-size: clamp(2.2rem, 5.5vw, 3.5rem);
+  line-height: 1.06;
+  letter-spacing: -.015em;
+  margin: 0 0 1rem;
+  text-wrap: balance;
+}
+.standfirst {
+  font-family: Newsreader, Georgia, serif;
+  font-size: 1.2rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 62ch;
+  margin: 0 0 1.75rem;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem 1.5rem;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .74rem;
+  color: var(--ink-faint);
+  letter-spacing: .04em;
+}
+.meta b { color: var(--ink-soft); font-weight: 600; }
+
+.rail { margin-bottom: 3rem; }
+@media (min-width: 1000px) {
+  .rail {
+    position: sticky; top: 2rem; align-self: start;
+    max-height: calc(100vh - 4rem); overflow-y: auto; margin-bottom: 0;
+  }
+}
+.rail h2 {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .7rem; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--ink-faint); margin: 0 0 .85rem; font-weight: 600;
+}
+.rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .1rem; }
+.rail a {
+  display: block; padding: .3rem 0 .3rem .7rem;
+  border-left: 2px solid var(--rule-soft);
+  color: var(--ink-soft); text-decoration: none;
+  font-size: .84rem; line-height: 1.35;
+}
+.rail a:hover, .rail a:focus-visible { color: var(--accent); border-left-color: var(--accent); }
+.rail .grp {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .66rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink-faint); margin: 1.1rem 0 .35rem;
+}
+.rail .grp:first-child { margin-top: 0; }
+
+section { margin-bottom: 3.5rem; scroll-margin-top: 1.5rem; }
+
+/* The step marker. v1 used topic labels because its sections were topics.
+   Here the content genuinely IS a sequence -- one embedding search, then four
+   channels nominating, then fusion -- so a number encodes something true. */
+.stephead { display: flex; align-items: baseline; gap: .85rem; margin: 0 0 1.25rem; padding-bottom: .6rem; border-bottom: 1px solid var(--rule); }
+.stepnum {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .9rem; font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: .1rem .45rem;
+  flex: none;
+  line-height: 1.4;
+}
+.stephead h2 {
+  font-family: Newsreader, Georgia, serif;
+  font-weight: 600;
+  font-size: clamp(1.5rem, 3.2vw, 1.95rem);
+  line-height: 1.18; letter-spacing: -.01em;
+  margin: 0; text-wrap: balance;
+}
+.yield {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .78rem;
+  color: var(--ink-soft);
+  margin-left: auto;
+  white-space: nowrap;
+  flex: none;
+}
+@media (max-width: 640px) { .yield { margin-left: 0; width: 100%; } .stephead { flex-wrap: wrap; } }
+
+h3 {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-weight: 600; font-size: 1.02rem; letter-spacing: -.005em;
+  margin: 1.9rem 0 .6rem; color: var(--ink); text-wrap: balance;
+}
+p { margin: 0 0 1rem; max-width: 68ch; }
+ul { margin: 0 0 1rem; padding-left: 1.15rem; max-width: 68ch; }
+li { margin-bottom: .4rem; }
+strong { font-weight: 600; }
+a { color: var(--accent); }
+
+code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: .85em; background: var(--code-bg);
+  padding: .1em .35em; border-radius: 3px;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--rule-soft);
+  border-radius: 5px;
+  padding: .9rem 1.1rem;
+  overflow-x: auto; margin: 0 0 1.15rem; line-height: 1.55;
+}
+pre code { background: none; padding: 0; font-size: .8rem; }
+
+.scroll { overflow-x: auto; margin: 0 0 1.25rem; }
+table {
+  border-collapse: collapse; width: 100%; min-width: 24rem;
+  font-size: .87rem; font-variant-numeric: tabular-nums;
+}
+th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+th {
+  font-size: .7rem; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-faint); font-weight: 600;
+  border-bottom: 1px solid var(--rule); white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: none; }
+.num { text-align: right; white-space: nowrap; }
+
+.measured, .caveat {
+  border-left: 3px solid; padding: .8rem 1.1rem; margin: 0 0 1.25rem;
+  border-radius: 0 4px 4px 0; max-width: 68ch;
+}
+.measured { border-color: var(--accent); background: var(--accent-bg); }
+.caveat   { border-color: var(--flag);   background: var(--flag-bg); }
+.measured p, .caveat p { margin: 0; max-width: none; }
+.measured p + p, .caveat p + p { margin-top: .5rem; }
+.tag {
+  display: block; font-family: "IBM Plex Mono", monospace;
+  font-size: .64rem; letter-spacing: .13em; text-transform: uppercase;
+  margin-bottom: .3rem; font-weight: 600;
+}
+.measured .tag { color: var(--accent); }
+.caveat .tag { color: var(--flag); }
+
+/* "What it asks" — the one-line contrast that distinguishes each channel. */
+.asks {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  padding: .85rem 1.1rem;
+  margin: 0 0 1.25rem;
+  max-width: 68ch;
+  font-family: Newsreader, Georgia, serif;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+.asks b { font-family: "IBM Plex Sans", sans-serif; font-size: .68rem; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint); display: block; margin-bottom: .35rem; font-weight: 600; }
+
+figure { margin: 0 0 1.5rem; }
+figure svg { display: block; width: 100%; height: auto; max-width: 42rem; color: var(--ink-soft); }
+figcaption { font-size: .8rem; color: var(--ink-faint); margin-top: .5rem; max-width: 62ch; line-height: 1.5; }
+
+/* Key-number strip: three figures that carry the whole measurement. */
+.figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1px; background: var(--rule);
+  border: 1px solid var(--rule); border-radius: 5px;
+  overflow: hidden; margin: 0 0 1.5rem; max-width: 68ch;
+}
+.figures div { background: var(--surface); padding: .85rem 1rem; }
+.figures .n {
+  font-family: Newsreader, Georgia, serif;
+  font-size: 1.6rem; font-weight: 600; line-height: 1.1;
+  font-variant-numeric: tabular-nums; color: var(--accent);
+}
+.figures .l { font-size: .74rem; color: var(--ink-soft); line-height: 1.35; margin-top: .15rem; }
+
+hr.end { border: none; border-top: 1px solid var(--rule); margin: 3rem 0 1.5rem; }
+.colophon { font-size: .82rem; color: var(--ink-faint); max-width: 62ch; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="shell">
+
+<header class="masthead">
+  <p class="eyebrow">Graph RAG over court filings · v2, sequential</p>
+  <h1>Four channels, step by step</h1>
+  <p class="standfirst">One question goes in. An answer — or an honest refusal — comes out. This is every stage in the order it actually happens: what each channel reads, how many chunks it nominates, how eight get chosen, and what decides whether they are enough.</p>
+  <div class="meta">
+    <span><b>Corpus</b> 3,338 chunks · 179 documents</span>
+    <span><b>Retrieved</b> k = 8 chunks</span>
+    <span><b>Checked</b> one LLM call per chunk</span>
+  </div>
+</header>
+
+<nav class="rail" aria-label="Contents">
+  <h2>Sequence</h2>
+  <ol>
+    <li class="grp">Setup</li>
+    <li><a href="#chunk">What a chunk is, and what k is</a></li>
+    <li><a href="#search">One embedding search</a></li>
+    <li class="grp">The four channels</li>
+    <li><a href="#vector">1 · Vector</a></li>
+    <li><a href="#density">2 · Density</a></li>
+    <li><a href="#lexical">3 · Lexical</a></li>
+    <li><a href="#graph">4 · Graph</a></li>
+    <li class="grp">Combining them</li>
+    <li><a href="#fusion">5 · Fusion</a></li>
+    <li><a href="#worked">Worked, from a real run</a></li>
+    <li><a href="#tags">Reading the tags in the UI</a></li>
+    <li class="grp">What happens to the eight</li>
+    <li><a href="#judge">6 · Checking sufficiency</a></li>
+    <li><a href="#answer">7 · Answer, or refuse</a></li>
+    <li><a href="#bought">What the split bought</a></li>
+    <li class="grp">Ingestion</li>
+    <li><a href="#dedup">Entity resolution</a></li>
+    <li><a href="#incremental">Adding documents later</a></li>
+    <li class="grp">The gap</li>
+    <li><a href="#overview">Corpus-level questions</a></li>
+    <li><a href="#global">What closing it would take</a></li>
+    <li><a href="#storage">Where the artifacts live</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ==================================================================== -->
+<section id="chunk">
+  <div class="stephead">
+    <span class="stepnum">·</span>
+    <h2>First, the only object in this document</h2>
+    <span class="yield">a chunk</span>
+  </div>
+
+  <p>Every number on this page counts <strong>chunks</strong>. Nothing else.</p>
+
+  <p>At ingestion each PDF was cut into pieces of roughly 400 words. One piece is one chunk, and it is one row in the database:</p>
+
+  <pre><code>chunk_id     gov.uscourts.nysd.447706.1335.7_1_168
+source_file  gov.uscourts.nysd.447706.1335.7_1.pdf
+page_start   325
+text         "MS. BORJA: Mary Borja for Defendant, Alan Dershowitz&#8230;"
+vector       [1024 floats]</code></pre>
+
+  <p><strong>3,338 exist.</strong> That is the whole corpus &#8212; 179 PDFs, sliced up.</p>
+
+  <pre><code>3,338   chunks in the corpus
+  100   the embedding search returns      step 0
+   50   vector nominates                  step 1
+   12   density nominates                 step 2
+ &#8804; 50   lexical nominates                 step 3
+ &#8804; 50   graph nominates                   step 4
+    8   survive fusion                    step 5   &#8592; k
+    8   judge calls, one per chunk        step 6
+    1   answer                            step 7</code></pre>
+
+  <p><strong><code>k</code> is how many chunks reach the LLM at the end. It is 8.</strong></p>
+</section>
+
+<!-- ==================================================================== -->
+<section id="search">
+  <div class="stephead">
+    <span class="stepnum">0</span>
+    <h2>One embedding search</h2>
+    <span class="yield">→ 100 rows</span>
+  </div>
+
+  <p>Before any channel runs, the question is embedded once and searched once:</p>
+
+  <pre><code>const vector = await embedQuery(question);      // bge-large, 1024 dims
+const ranked = await table.search(vector)
+  .distanceType("cosine")
+  .limit(100)                                   // max(DENSITY_POOL, CHANNEL_POOL)
+  .toArray();</code></pre>
+
+  <p>That single <code>ranked</code> array of 100 chunks feeds <strong>channels 1 and 2</strong>. Channels 3 and 4 never look at it.</p>
+
+  <p>Worth holding onto, because it is the reason the whole thing behaves as it does: <strong>vector and density are not independent voters.</strong> They read the same 100 rows.</p>
+
+</section>
+
+<!-- ==================================================================== -->
+<section id="vector">
+  <div class="stephead">
+    <span class="stepnum">1</span>
+    <h2>Vector</h2>
+    <span class="yield">→ nominates 50</span>
+  </div>
+
+  <div class="asks"><b>What it asks</b>Which single chunk is closest in meaning to the question?</div>
+
+  <h3>What it does</h3>
+  <pre><code>1. Take the top 50 of the 100 rows.
+2. That is its nomination list. Done.</code></pre>
+
+  <h3>Then four of them get pulled out</h3>
+  <p>Before fusion runs at all:</p>
+  <pre><code>const reserved   = Math.floor(k / 2);           // k = 8, so 4
+const guaranteed = vectorIds.slice(0, reserved); // vector's top 4</code></pre>
+
+  <p>In plain terms:</p>
+  <ul>
+    <li>Vector's <strong>top 4</strong> → slots 1, 2, 3, 4. <strong>Locked.</strong></li>
+    <li>Vector's <strong>other 46</strong>, plus everything the other channels find, compete for slots 5, 6, 7, 8.</li>
+  </ul>
+
+  <h3>Why the four are locked</h3>
+  <div class="measured">
+    <span class="tag">A measured regression, not caution</span>
+    <p>The first version fused all 8 slots with equal weight. It fixed the obiter question and simultaneously <strong>broke</strong> "who is Alfredo Rodriguez" — the chunk that answers it is cosine <strong>#3</strong> — but the document that chunk came from ranks only <strong>#12</strong> by density, so density outvoted the channel that was right.</p>
+    <p>Equal weighting only works when channels are independent. Vector and density read the same 100 rows, so they are not. Reserving half the slots makes hybrid <strong>strictly additive</strong>: it can add what the others find, never subtract what plain similarity already had.</p>
+  </div>
+
+  <p>It is a weight. It is the one weight with a measurement behind it rather than a guess.</p>
+</section>
+
+<!-- ==================================================================== -->
+<section id="density">
+  <div class="stephead">
+    <span class="stepnum">2</span>
+    <h2>Density</h2>
+    <span class="yield">→ nominates up to 12</span>
+  </div>
+
+  <div class="asks"><b>What it asks</b>Which <em>document</em> has the most chunks in the neighbourhood?</div>
+
+  <p><strong>Its 12 chunks come from the same 100 rows / chunks read by vector.</strong> So they usually overlap with vector's 50. A chunk in both lists is not added twice — it collects <strong>two score terms</strong>, which is exactly what pushes it up.</p>
+
+  <h3>What it does</h3>
+  <pre><code>1. Take all 100 rows.
+2. Group them by source_file — which document each chunk came from.
+3. Count how many chunks each document has among the 100.
+4. Sort documents by that count. Keep the top 4.      ← Math.ceil(k / 2), k = 8
+5. From each of those 4, take its 3 best chunks.
+                                                       → 4 × 3 = 12</code></pre>
+
+  <p>Note that <strong>100 is a reading depth, not an output size.</strong> It counts within 100 and nominates 12.</p>
+
+  <h3>Why</h3>
+  <p>Both channels hand back chunks. They differ only in <strong>what evidence they use to pick them</strong>:</p>
+
+  <ul>
+    <li><strong>Vector</strong> picks a chunk because <em>that chunk</em> is close to the question.</li>
+    <li><strong>Density</strong> picks a chunk because <em>the document it came from</em> has many chunks close to the question.</li>
+  </ul>
+
+  <h3>How a document winning turns into a chunk surfacing</h3>
+  <p>Density never hands back a document. The document ranking never leaves step 2 — all it does is decide <strong>which chunks get a good density rank</strong>.</p>
+
+  <p>A document that comes 1st contributes chunks at positions 1, 2, 3. A document that comes 2nd contributes chunks at positions 4, 5, 6. Those are the numbers fusion scores, and near the front of a 12-long list they are strong:</p>
+
+  <pre><code>density position  1  &#8594;  1/(60+1)  = 0.01639
+density position  6  &#8594;  1/(60+6)  = 0.01515
+vector   rank    21  &#8594;  1/(60+21) = 0.01235</code></pre>
+
+  <p>So a chunk from a dense document may sit at vector #21 — a weak term on its own — and still arrive with a strong density term beside it. <strong>The two terms add, and that sum is what lifts it into slots 5&#8211;8.</strong></p>
+
+  <div class="measured">
+    <span class="tag">The case it was built for</span>
+    <p>The obiter question is answered by an oral-argument transcript: <strong>102 chunks, all moderately relevant, none outstanding.</strong></p>
+    <p>Rank the documents by their single best chunk’s cosine and this one comes <strong>14th</strong>. Rank them by how many of their chunks reached the top 100 and it comes <strong>2nd</strong>.</p>
+    <p>Vector never computes that first ranking — it is shown only to say what plain similarity would have done. What matters is the second: coming 2nd put three of the transcript’s chunks near the front of density’s list, and one of them reached the final 8.</p>
+  </div>
+
+  <h3>How to read a density rank</h3>
+  <p>The list is a flattened 12, not a list of documents — so the rank number means a position among those 12:</p>
+  <pre><code>positions  1– 3   →  densest document, its 3 best chunks
+positions  4– 6   →  2nd densest document
+positions  7– 9   →  3rd densest document
+positions 10–12   →  4th densest document</code></pre>
+  <p>So <code>density#7</code> means <em>the top chunk of the third-densest document</em> — not "seventh place."</p>
+</section>
+
+<!-- ==================================================================== -->
+<section id="lexical">
+  <div class="stephead">
+    <span class="stepnum">3</span>
+    <h2>Lexical</h2>
+    <span class="yield">→ nominates up to 50</span>
+  </div>
+
+  <div class="asks"><b>What it asks</b>Which chunks contain these exact words?</div>
+
+  <p><strong>These can be genuinely new.</strong> Lexical never touches the embedding search. It scans all 3,338 chunks itself, so it can nominate a chunk vector ranked #2,970.</p>
+
+  <h3>What it does</h3>
+  <pre><code>1. Send the question to qwen3:8b to be widened.   ← see below
+2. Concatenate: original question + both widened outputs.
+3. Score all 3,338 chunks with BM25 against that blob.
+4. Drop everything scoring 0.                    ← usually most of the corpus
+5. Sort by score, take the top 50.</code></pre>
+
+  <p>Step 4 is why it often nominates <strong>fewer than 50</strong>. If only six chunks contain any of the rare terms, it nominates six.</p>
+
+  <h3>How the widening works</h3>
+  <p>One LLM call returns <strong>two strings</strong>, and both get thrown into the search alongside the original question.</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Output</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td><code>expanded_query</code></td><td>the same question restated in the words a filing would literally use — jargon and Latin replaced, names and dates kept exactly</td></tr>
+      <tr><td><code>hypothetical_chunk</code></td><td>two or three sentences written <em>as if excerpted from a real filing that answers the question</em></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Worked, from the prompt's own example — question: <em>"What was the outcome of the sanctions motion?"</em></p>
+
+  <pre><code>expanded_query:
+  "motion for sanctions granted denied; Rule 37 sanctions; the motion is
+   granted in part and denied in part; award of fees and costs"
+
+hypothetical_chunk:
+  "For the foregoing reasons, the motion for sanctions is granted in part
+   and denied in part. Defendant shall bear the reasonable costs and
+   attorneys' fees incurred in connection with the motion."</code></pre>
+
+  <p>"Rule 37", "foregoing", "attorneys' fees" — rare terms actually found in filings. The original question contained none of them.</p>
+
+  <h3>Where those words come from</h3>
+  <p><strong>Purely the model's training.</strong> Qwen has never seen this corpus — not one of the 179 documents. It is not looking anything up. It generates from what it learned about how American court filings are written, and that works because filings are formulaic: "for the foregoing reasons" appears in millions of documents.</p>
+
+  <p>When it guesses a term that appears nowhere in these 3,338 chunks, BM25 scores it zero. Costs nothing.</p>
+
+  <h3>Why inventing a chunk is safe here</h3>
+  <p>Nothing generated is ever shown to you or fed to the answer model. <strong>It exists only to produce search terms.</strong> A hallucinated detail costs a slightly worse retrieval, never a wrong answer. The same trick anywhere downstream would be dangerous.</p>
+
+  <h3>Why the channel exists</h3>
+  <div class="measured">
+    <span class="tag">The case it was built for</span>
+    <p>The corpus's genuine quoted judicial dicta — <em>"the Court notes that…"</em> — sat at <strong>#329 to #2,970 by cosine.</strong> Vector would have to look 2,970 deep. Once the query was widened into the literal phrasing a filing uses, they were <strong>#1 to #4 of only 6 matches.</strong></p>
+  </div>
+
+  <p>BM25's IDF term is what does it: "the" and "court" appear everywhere and contribute almost nothing; "dictum" appears in six chunks and contributes almost everything.</p>
+
+  <div class="caveat">
+    <span class="tag">Known gap</span>
+    <p>The widening is an LLM call and it fails — measured across eight demo questions, four came back unparseable, all of them enumerative. Lexical then silently falls back to searching the raw question.</p>
+  </div>
+</section>
+
+<!-- ==================================================================== -->
+<section id="graph">
+  <div class="stephead">
+    <span class="stepnum">4</span>
+    <h2>Graph</h2>
+    <span class="yield">→ nominates up to 50</span>
+  </div>
+
+  <div class="asks"><b>What it asks</b>Who is actually named in here?</div>
+
+  <p><strong>These can be genuinely new too.</strong> Graph never touches the embedding search. It walks the knowledge graph in ArangoDB.</p>
+
+  <h3>What it does</h3>
+  <pre><code>1. Tokenize the question. Match against all 2,014 entity names.
+       "what did Ghislaine Maxwell say"  →  entity "Ghislaine Maxwell"
+       No LLM. Just word overlap.
+
+2. If fewer than 2 names matched, try category words instead.
+       "courts" → type court → the top 25 court entities by mention count
+
+3. Expand coreference families.
+       "Ms. Giuffre" → Virginia Giuffre, V. Roberts, Giuffre, …
+
+4. Traverse je_mentioned_in from those entities to every chunk
+   they appear in.                              (capped at 2,000 edges)
+
+5. Rank those chunks:
+       first  by how many DISTINCT seed entities are in the chunk
+       then   by total mention count
+
+6. Keep the top 200. Hand up the top 50.</code></pre>
+
+  <h3>What "tokenize" means here</h3>
+  <p>Separating the words. Still plain text. <strong>No embedding, no model.</strong></p>
+  <pre><code>"Detective Joseph Recarey"  →  {joseph, recarey}
+"Mr. Recarey"               →  {recarey}</code></pre>
+  <p>Lowercase it, split on anything that is not a letter or digit, drop ~50 hand-listed non-identifying words — titles, ranks, <code>esq</code>, <code>llc</code>, <code>court</code>, <code>district</code>. That is what lets those two strings match as one person, in milliseconds, with a reason you can read.</p>
+
+  <h3>What step 5 actually rewards</h3>
+  <p>A chunk containing <strong>both</strong> Maxwell and Epstein outranks a chunk containing Maxwell five times. Two entities beats one entity mentioned often.</p>
+
+  <h3>Why</h3>
+  <p>Two things vector structurally cannot do:</p>
+  <ul>
+    <li><strong>Conjunctions.</strong> "Filings mentioning both Maxwell and Epstein" — embedding that phrase yields one point resembling a <em>blend</em> of the two, not the set containing both. <strong>There is no vector for AND.</strong></li>
+    <li><strong>Surface forms.</strong> A question saying "Ms. Giuffre" gets you chunks saying "Ms. Giuffre." Coreference expansion turns that single hit into the whole <strong>876-chunk family</strong>, including chunks that only ever say "V. Roberts."</li>
+  </ul>
+
+  <h3>When it nominates nothing</h3>
+  <p>If no entity name and no category word matches, it anchors on nothing and nominates <strong>zero</strong> — the amber fallback banner. The graph contributed nothing and says so, rather than taking credit for what similarity search found.</p>
+
+  <div class="caveat">
+    <span class="tag">Measured</span>
+    <p>That happened on <strong>11 of 35</strong> eval questions, concentrated in aggregation and counting questions — the ones that name no entity at all.</p>
+  </div>
+</section>
+
+<!-- ==================================================================== -->
+<section id="fusion">
+  <div class="stephead">
+    <span class="stepnum">5</span>
+    <h2>Fusion</h2>
+    <span class="yield">→ fills slots 5–8</span>
+  </div>
+
+  <p>Four ranked lists arrive. <strong>The scores each channel computed are thrown away at the door.</strong></p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Channel</th><th>Reads</th><th class="num">Nominates</th></tr></thead>
+    <tbody>
+      <tr><td><code>vector</code></td><td>top 50 of the 100 rows</td><td class="num">50</td></tr>
+      <tr><td><code>density</code></td><td>all 100 rows</td><td class="num">up to 12</td></tr>
+      <tr><td><code>lexical</code></td><td>all 3,338 chunks</td><td class="num">up to 50</td></tr>
+      <tr><td><code>graph</code></td><td>the knowledge graph</td><td class="num">up to 50</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Discarding the scores is the point. A cosine distance of 0.31, a BM25 score of 14.2 and a count of 6 chunks are three different units. Combining the numbers means inventing multipliers, and no measurement says what they should be. <strong>Ranks are already comparable: #3 means #3 in every list.</strong></p>
+
+  <h3>The rule</h3>
+  <p><strong><code>d</code> is one chunk</strong> — the same object defined at the top of this document. Everything below is per-chunk.</p>
+  <pre><code>score(d) = Σ  1 / (60 + rank_c(d))
+          c ∈ channels d appears in</code></pre>
+
+  <ul>
+    <li><strong><code>d</code></strong> — one chunk, the object this whole formula scores.</li>
+    <li><strong><code>c</code></strong> ranges over <strong>only the channels that nominated <code>d</code></strong>. A channel that did not nominate it contributes <em>no term at all</em> — not a zero term, simply absent.</li>
+    <li><strong><code>rank_c(d)</code></strong> is <code>d</code>'s 1-based position in that channel's list. It is the same number shown in the tag: <code>density#7</code> means the denominator is <code>60 + 7</code>.</li>
+  </ul>
+
+  <p>The set of <code>d</code>s is the <strong>union</strong> of the four lists — up to 162 chunks, fewer in practice because they overlap. The other ~3,180 chunks never enter the calculation. No score, not ranked last. Simply absent.</p>
+
+  <h3>Why 60</h3>
+  <p>Without it the formula is <code>1/rank</code>: rank 1 scores 1.0, rank 2 scores 0.5. Any channel's top hit would flatten everything below it. Adding 60 squashes the top of the curve nearly flat.</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th class="num">rank</th><th class="num">1/(60+rank)</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td class="num">0.01639</td></tr>
+      <tr><td class="num">2</td><td class="num">0.01613</td></tr>
+      <tr><td class="num">10</td><td class="num">0.01429</td></tr>
+      <tr><td class="num">50</td><td class="num">0.00909</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>#1 beats #2 by 1.6%. #1 beats #50 by only 1.8×. So one appearance never dominates, and what actually moves a chunk up is <strong>appearing in more than one list</strong>. With 50-long lists that is provable:</p>
+
+  <pre><code>worst possible two-list showing:  2 × 1/110 = 0.01818
+best possible one-list showing:       1/61  = 0.01639</code></pre>
+
+  <p><strong>Being last in two channels beats being first in one.</strong> That is the entire behaviour the formula is bought for.</p>
+
+  <p>The 60 is <code>RRF_K</code>, the published default from Cormack et al. 2009. It was taken, not tuned.</p>
+</section>
+
+<!-- ==================================================================== -->
+<section id="worked">
+  <div class="stephead">
+    <span class="stepnum">✓</span>
+    <h2>Worked, from a real run</h2>
+    <span class="yield">→ 8 chunks</span>
+  </div>
+
+  <p>The eight slots as they came back, with their tags:</p>
+
+  <pre><code>[1] vector#1  reserved              ← locked, no fusion
+[2] vector#2  reserved
+[3] vector#3  reserved
+[4] vector#4  reserved
+[5] vector#16 density#7 lexical#5
+[6] vector#11 density#2 lexical#38
+[7] vector#14 density#3
+[8] vector#19 density#5</code></pre>
+
+  <p>Slots 5–8 scored from nothing but those tag numbers:</p>
+
+  <pre><code>slot 5   1/(60+16) + 1/(60+7) + 1/(60+5)   = 0.043468
+slot 6   1/(60+11) + 1/(60+2) + 1/(60+38)  = 0.040418
+slot 7   1/(60+14) + 1/(60+3)              = 0.029387
+slot 8   1/(60+19) + 1/(60+5)              = 0.028043</code></pre>
+
+  <p>Descending — which reproduces the observed slot order exactly.</p>
+
+  <p>And the property in one line: a chunk sitting at <strong><code>vector#5</code> and nowhere else</strong> scores <code>1/65 = 0.015385</code>. It loses to all four above it, including slot 8, whose best placement is #5 in one channel and #19 in another. <strong>Two mediocre placements beat one good one.</strong></p>
+
+  <p>Slots 5–8 ranked 11th, 14th, 16th and 19th by plain cosine. A vector-only top-8 would have taken cosine #5 through #8 instead. Hybrid returned four chunks naive would have missed, and dropped four naive would have taken — while keeping naive's best four untouched in slots 1–4.</p>
+
+  <div class="measured">
+    <span class="tag">The one that justifies the whole design</span>
+    <p>The chunk answering "is there any obiter dicta here" — in a corpus where the word <em>obiter</em> appears <strong>zero times</strong> in 3,338 chunks — arrived at <strong>slot 8 of 8</strong>, tagged <code>vector#21 density#3</code>:</p>
+    <p><code>1/(60+21) + 1/(60+3) = 0.01235 + 0.01587 = 0.02822</code></p>
+    <p>A chunk at <code>vector#6</code> and nowhere else scores <code>0.01515</code>. The obiter chunk outscores it by nearly <strong>2×</strong> despite being fifteen places worse on similarity. Density carried it. A vector-only top-8 misses it by thirteen places.</p>
+  </div>
+</section>
+
+<!-- ==================================================================== -->
+<section id="tags">
+  <div class="stephead">
+    <span class="stepnum">·</span>
+    <h2>Reading the tags in the UI</h2>
+    <span class="yield">how to decode a row</span>
+  </div>
+
+  <p>Two families of tag sit on every source row, and they come from different stages.</p>
+
+  <h3>Channel tags &#8212; the grey line under the page numbers</h3>
+  <p>Each names a channel and the rank that channel gave this chunk. The number is the same one the formula uses: <code>density#7</code> means the denominator is <code>60 + 7</code>.</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Tag</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>vector#N</code></td><td>step 1 &#8212; cosine similarity</td></tr>
+      <tr><td><code>density#N</code></td><td>step 2 &#8212; position in the flattened 12</td></tr>
+      <tr><td><code>lexical#N</code></td><td>step 3 &#8212; BM25 over the widened query</td></tr>
+      <tr><td><code>graph#N</code></td><td>step 4 &#8212; entity traversal</td></tr>
+      <tr><td><code>reserved</code></td><td>slot 1&#8211;4, placed by rule &#8212; carries no rank number</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Several tags on one row means several channels nominated that chunk independently. Two more lines appear only on chunks the graph reached: <code>reached via &lt;names&gt;</code>, and beneath it the evidence &#8212; entity, role, and the literal quote from the edge.</p>
+
+  <h3><code>cited</code> &#8212; the green badge before the filename</h3>
+  <p><strong>Not a channel.</strong> It comes from step 6, and means the sufficiency check marked that chunk relevant.</p>
+
+  <p>So the two families answer different questions: channel tags say <strong>how this chunk got here</strong>; <code>cited</code> says <strong>what the sufficiency check made of it once it arrived</strong>.</p>
+
+  <h3>What a missing tag tells you</h3>
+  <p><strong>No <code>graph#</code> anywhere, with the blue anchored panel showing.</strong> The traversal ran, anchored, nominated 50 chunks &#8212; and lost every slot.</p>
+
+  <div class="measured">
+    <span class="tag">Live run &#8212; "Which courts appeared in these filings?"</span>
+    <p>The traversal linked 25 court entities, reached <strong>1,299 mentions across 1,004 chunks</strong>, nominated 50 &#8212; and not one of the eight final slots carried a <code>graph#</code> tag. Four were <code>reserved</code>; the other four went to chunks carrying two or three tags each.</p>
+  </div>
+
+  <p>Structural, not accidental. Four slots are gone before fusion runs, and RRF rewards chunks nominated by more than one channel &#8212; but vector and density read the same 100 rows, so they stack routinely. Graph is independent of both, so it almost never stacks. <strong>The reserved slots protect vector from being outvoted. Nothing protects graph.</strong></p>
+</section>
+
+<!-- ==================================================================== -->
+<section id="judge">
+  <div class="stephead">
+    <span class="stepnum">6</span>
+    <h2>Checking sufficiency</h2>
+    <span class="yield">→ sufficient, yes or no</span>
+  </div>
+
+  <div class="asks"><b>What it asks</b>Does <em>this one chunk</em> help answer the question?</div>
+
+  <p>Note what it does <strong>not</strong> ask. It never asks "can these eight answer it." It asks eight small questions and counts the answers.</p>
+
+  <h3>What it does</h3>
+  <pre><code>1. Take the 8 chunks fusion produced.
+
+2. Fire 8 SEPARATE calls to qwen3:8b, in parallel.
+       Each call sees exactly ONE chunk.
+       Each call sees no other chunk. Ever.
+
+3. Each returns one boolean:
+       { "answers_question": true }   or   { "answers_question": false }
+
+4. Count the trues.
+
+5. sufficient = (count &gt; 0)</code></pre>
+
+  <h3>The schema is the enforcement</h3>
+  <p>That is the entire shape it is allowed to reply in:</p>
+  <pre><code>const SINGLE_SCHEMA = {
+  type: "object",
+  properties: { answers_question: { type: "boolean" } },
+  required: ["answers_question"],
+};</code></pre>
+
+  <p><strong>There is no field long enough to hold an answer.</strong> An earlier version paired each boolean with a short <code>why</code> string, and the model used that prose field as somewhere to start answering the question. Remove the field and it structurally cannot.</p>
+
+  <h3>Why one call per chunk</h3>
+  <p>The original checked all eight in a single call and returned a boolean per chunk. That <em>looks</em> independent. It is not.</p>
+
+  <div class="measured">
+    <span class="tag">Measured on "who were the defense attorneys" — answer in slot 1 of 8</span>
+    <pre style="margin:.4rem 0 0;background:transparent;border:none;padding:0"><code>all 8 chunks                → sufficient = false, 0 cited
+the same 8, minus slot 7      → sufficient = TRUE
+slot 7 swapped for another    → false
+k=1 false · k=2 TRUE · k=4 false · k=8 false</code></pre>
+    <p>Holding the retrieved set fixed, "who <em>were</em>" and "who <em>are</em>" give the <strong>same</strong> result — the tense only moved the query embedding, which changed three of the eight neighbours. <strong>The result for slot 1 was a function of the other seven the whole time.</strong></p>
+  </div>
+
+  <p>That cannot be fixed by instructing the model to check independently, because the instruction was already there. So the set stops being a variable: one call, one chunk, no opportunity for the others to interfere.</p>
+
+  <h3>"Sufficient" is computed, never asked</h3>
+  <p>Nothing asks the model whether the chunks are sufficient. It is arithmetic on the eight booleans:</p>
+  <pre><code>const sufficient = relevantNumbers.length &gt; 0;</code></pre>
+
+  <p>That moved in three stages, and the arc is the point:</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Version</th><th>How <code>sufficient</code> was decided</th></tr></thead>
+    <tbody>
+      <tr><td>Original</td><td>Asked the model. It returned <code>sufficient: true</code> with <strong>zero</strong> chunks marked relevant — then named Epstein as a person called Maxwell.</td></tr>
+      <tr><td>Guarded</td><td>The model's answer ANDed with a rule it kept ignoring.</td></tr>
+      <tr><td><strong>Now</strong></td><td><strong>Never asks.</strong> Counts the trues.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Same lesson as the pinned schema in entity resolution: <strong>an instruction the model can ignore becomes a rule it cannot, once it moves out of the prompt and into code.</strong></p>
+
+  <h3>The threshold is one</h3>
+  <p><strong>One "yes" out of eight and it answers.</strong> Eight "no"s are required to refuse.</p>
+
+  <div class="caveat">
+    <span class="tag">Where that bites</span>
+    <p>Asked "what is this corpus about," every retrieved chunk genuinely <em>is</em> a piece of this corpus — so all eight checks truthfully return yes, and it answers from 0.24% of the corpus. Corpus-level questions do not fool the gate. They satisfy it.</p>
+  </div>
+
+  <p>A failed or unparseable call also counts as <strong>no</strong> — failing toward refusing rather than toward answering from unvetted context.</p>
+</section>
+
+<!-- ==================================================================== -->
+<section id="answer">
+  <div class="stephead">
+    <span class="stepnum">7</span>
+    <h2>Answer, or refuse</h2>
+    <span class="yield">→ text on screen</span>
+  </div>
+
+  <h3>If sufficient is false</h3>
+  <p>The refusal is <strong>assembled in JavaScript</strong>. No LLM call at all:</p>
+  <pre><code>answer: `These chunks do not contain the answer -- ${verdict.missing}.`</code></pre>
+
+  <p>This is the anti-confabulation move. Having decided the chunks cannot answer, sending them back to a model to write that up <em>is</em> the round trip that produces a confident non-answer. Building the sentence in code makes that round trip unreachable.</p>
+
+  <h3>If sufficient is true</h3>
+  <pre><code>1. One streaming call to qwen3:8b.
+2. It receives ALL EIGHT chunks — not just the relevant ones.
+3. Its instruction: "They have already been judged sufficient,
+   so answer directly and confidently."</code></pre>
+
+  <p>No hedging language, because hedging was step 6's job and step 6 is over. Neither model is ever in a position to talk itself into writing something: step 6 has nowhere to put an answer, and step 7 was never asked whether to give one.</p>
+
+  <h3>Where the citations come from</h3>
+  <p><strong>The sufficiency check, never the answer.</strong> The answer prompt forbids source numbers in the reply. The cited chunks are resolved in code from the eight booleans — result <em>i</em> is about source <em>i</em>, and the real chunk id is reattached positionally.</p>
+
+  <p>That is the lesson from an early failure where the model, asked to echo a long dotted identifier, returned <code>":65839"</code> — a real id with a stray colon picked up from the prompt's own formatting. Small integers derived positionally in code cannot be mangled.</p>
+
+  <div class="caveat">
+    <span class="tag">Known gap</span>
+    <p>Step 7 reads all eight chunks including the seven just marked irrelevant — the results drive the gate and the citations, but do not filter the context.</p>
+  </div>
+
+  <div class="caveat">
+    <span class="tag">Known gap</span>
+    <p>The <code>cited</code> badge means "the sufficiency check marked this chunk relevant," not "this sentence came from here." Usually the same; not guaranteed.</p>
+  </div>
+
+</section>
+
+<!-- ==================================================================== -->
+<section id="bought">
+  <div class="stephead">
+    <span class="stepnum">&#10003;</span>
+    <h2>What the split bought</h2>
+    <span class="yield">105 rows, zero errors</span>
+  </div>
+
+  <p>35 questions &#215; 3 strategies, before and after.</p>
+
+  <div class="figures">
+    <div><div class="n">0 &#8594; 11</div><div class="l">of 15 abstention questions correctly refused</div></div>
+    <div><div class="n">0 / 105</div><div class="l">verified wrong refusals across the whole run</div></div>
+    <div><div class="n">&#8722;13.9%</div><div class="l">average latency, graph (62.9s &#8594; 49.1s)</div></div>
+  </div>
+
+  <p>Faster on all three strategies, which was not an expected trade. The 15 is five <code>absence_abstention</code> questions &#215; three strategies &#8212; things the corpus genuinely cannot answer. Per strategy: naive 4/5, hybrid 3/5, graph 4/5.</p>
+
+  <div class="measured">
+    <span class="tag">Watch the denominators &#8212; they are different numbers</span>
+    <p>The <strong>0 wrong refusals</strong> figure is out of <strong>105</strong>, not 15 &#8212; the whole run. It answers the opposite question: <em>did the fix make it refuse anything it shouldn&#8217;t have?</em> Six refusals landed outside the abstention stratum; each was checked against the corpus by hand and all six were right to refuse.</p>
+    <p>So the pair is: more refusing where it should (0 &#8594; 11 of 15), and no new refusing where it shouldn&#8217;t (0 of 105).</p>
+  </div>
+
+  <h3>What the old path was actually doing</h3>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Question asked</th><th>Old answer was about</th><th class="num">Citations claimed</th></tr></thead>
+    <tbody>
+      <tr><td>Which judge signed the Jan 2024 PII order?</td><td>adverse inference instructions</td><td class="num">8/8</td></tr>
+      <tr><td>When was Maxwell ordered to sit for a further deposition?</td><td>attorney-client privilege</td><td class="num">8/8</td></tr>
+      <tr><td>Errata sheet reason for the change</td><td>a passport stamp</td><td class="num">8/8</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>A different question every time, <code>answered_from_context: true</code>, full citations. <strong>The old citation counts measured nothing.</strong></p>
+
+  <h3>Still broken &#8212; 4 of 15</h3>
+
+  <p><strong>AB-02</strong> &#8212; &#8220;what sentence did the court impose on Epstein?&#8221; Hybrid and graph give contradictory sentences, 30 months vs 13 months. <code>"months in county jail"</code> appears <strong>zero times</strong> in the corpus, so hybrid&#8217;s is fabricated.</p>
+
+  <p><strong>AB-05</strong> &#8212; &#8220;what did Prince Andrew say in his deposition?&#8221; He was never deposed. The model writes paragraphs about what he did not say.</p>
+
+  <p>Both are one failure. The corpus contains a great deal <em>about</em> the subject, so each check in step 6 truthfully says &#8220;this chunk bears on the question&#8221; &#8212; and step 7 then writes as if the specific fact were present. <strong>Per-chunk checking fixed set contamination. It does not fix this.</strong></p>
+
+  <div class="caveat">
+    <span class="tag">Known gap</span>
+    <p>VN-02 is mis-stratified &#8212; its quoted premise appears zero times in the corpus, making it an abstention question wearing a <code>verbatim_nuance</code> label, so the stratum counts are slightly off.</p>
+  </div>
+</section>
+
+<!-- ==================================================================== -->
+<section id="dedup">
+  <div class="stephead">
+    <span class="stepnum">&#183;</span>
+    <h2>Entity resolution</h2>
+    <span class="yield">ingestion</span>
+  </div>
+<p>Two candidate channels run <strong>in parallel</strong>, not in sequence, and <strong>neither one decides anything</strong>. They only build a shortlist.</p>
+
+  <pre><code>new mention
+   ├── Channel 1: Jaro-Winkler on the bare name  ─┐
+   │                                              ├── union by entity_id, cap 5
+   └── Channel 2: embedding of surrounding text ──┘            │
+                                                               ▼
+                                                     Step 5: LLM judges</code></pre>
+
+  <p><strong>Channel 1 — name string only.</strong> Case-insensitive Jaro-Winkler against every existing entity <em>of the same type</em>, threshold 0.85, sorted, top 5. Catches <code>J. Smith</code> / <code>John Smith</code>.</p>
+
+  <p><strong>Channel 2 — context only, never the name.</strong> What gets embedded is a <strong>±15-word window around the mention</strong>, not the name and not the whole chunk:</p>
+
+  <pre><code>…counsel regarding [Ms. Giuffre] and the scheduling of…
+ └──── 15 words ────┘      ↑      └──── 15 words ────┘
+                      the mention</code></pre>
+
+  <p>That snippet is embedded once and used twice — for the search, and as the stored vector row. It catches <code>Virginia Roberts</code> ↔ <code>Virginia L. Giuffre</code>, where the names share almost nothing but the surrounding language does. It needed a guard: left alone it nominated <em>Ghislaine Maxwell</em> as a candidate for <em>Jeffrey Epstein</em> — no name relation at all, just two names that co-occur constantly.</p>
+
+  <h3>Where the decision is made</h3>
+  <p>Neither channel. One LLM call, and it gets facts rather than just names: the new mention's name, type and textual evidence; the candidate's name; the role in <em>that specific</em> matched mention; and the docket numbers and dates from that mention's chunk. Decision per candidate: <code>same</code> / <code>different</code> / <code>unsure</code>.</p>
+
+  <p>Roles are mostly empty on purpose — 18,576 of 19,009 edges carry <code>role: "none"</code>, because extraction sets a role only when the word is spelled out next to the name. <em>Better to under-assign than to guess.</em></p>
+
+  <h3>Three structural guards, because prompting failed</h3>
+  <ul>
+    <li><strong>The schema pins the count.</strong> <code>minItems</code>/<code>maxItems</code> built per call to the exact candidate count. Without it, constrained decoding returned 2 decisions for 1 candidate.</li>
+    <li><strong>No entity IDs in the schema at all.</strong> Candidates are numbered; the real ID is reattached in code.</li>
+    <li><strong>A deterministic backstop.</strong> A <code>same</code> decision that came only from the embedding channel, with neither name generic and Jaro-Winkler below 0.6, is downgraded to <code>unsure</code>. That came from the model merging two unrelated people whose snippets overlapped almost entirely because both sat in one six-person discovery request.</li>
+  </ul>
+
+  <p>Then: <code>same</code> attaches to the existing entity, no match creates a new one, and every <code>unsure</code> writes a <code>je_possible_duplicates</code> edge — the source of the 413 queued flags.</p>
+
+  <div class="measured">
+    <span class="tag">Two library defaults that cost real damage</span>
+    <p><strong>Case sensitivity was load-bearing.</strong> The library defaults to case-sensitive; <code>SOUTHERN DISTRICT OF NEW YORK</code> vs <code>Southern District of New York</code> scored <strong>0.517</strong>. 110 nodes — 5.6% of the graph — were redundant purely on case.</p>
+    <p><strong>Sorting before the cap was load-bearing.</strong> The first run capped an <em>unsorted</em> list, returning an arbitrary 5 above threshold instead of the best 5. On honorific-dense names, 80–130 clear 0.85 for one probe, so the exact 1.000 self-match got crowded out. Result: <strong>38 separate "Mr. Barton" nodes</strong>, 9.6% of the graph.</p>
+    <p>Both failed safely — missed merges, never false ones — and <strong>neither showed up in a 200-chunk test</strong>, because the effect scales with entity count.</p>
+  </div>
+
+  <div class="caveat">
+    <span class="tag">Known gap</span>
+    <p>Coreference was run with <code>--type person</code> only. Courts, organizations and locations were never resolved — so SDNY exists as three separate nodes (664 + 120 + 86 mentions) with no <code>same_as</code> edges, and its true count is 870, not 664.</p>
+  </div>
+</section>
+
+<!-- ==================================================================== -->
+<section id="incremental">
+  <div class="stephead">
+    <span class="stepnum">&#183;</span>
+    <h2>Adding documents later</h2>
+    <span class="yield">ingestion</span>
+  </div>
+<p>"Adding one filing means rebuilding the graph" is too pessimistic. The 19.8 hours built 2,014 entities from <strong>nothing</strong> — every mention arrived with no graph to compare against, so almost every one triggered an LLM call.</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th></th><th class="num">full build</th><th class="num">one new filing</th></tr></thead>
+    <tbody>
+      <tr><td>new mentions</td><td class="num">19,009</td><td class="num">~100</td></tr>
+      <tr><td>entities to compare against</td><td class="num">growing from 0</td><td class="num">fixed at ~2,014</td></tr>
+      <tr><td>string comparisons</td><td class="num">—</td><td class="num">~200,000 (milliseconds)</td></tr>
+      <tr><td>LLM calls</td><td class="num">~19,000</td><td class="num">~60</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Minutes, not hours. Three phases with different concurrency rules:</p>
+
+  <ul>
+    <li><strong>Phase A — per document, fully parallel.</strong> Chunk, embed, extract, write. No shared state. Key it on a <strong>content hash, not a filename</strong> — courts re-file corrected versions constantly, and a filename tells you nothing about whether you have seen the bytes.</li>
+    <li><strong>Phase B — entity resolution, serialized per matter.</strong> Two workers on two filings would both see no existing "Mr. Recarey" and both create one.</li>
+    <li><strong>Phase C — the retroactive sweep.</strong> The genuinely new piece.</li>
+  </ul>
+
+  <h3>Why the sweep is cheap: merges are edges, not rewrites</h3>
+  <p>Suppose the graph already holds <code>V. Roberts</code> and <code>Virginia Giuffre</code> as separate nodes because nothing ever connected them. A new filing says <em>"Virginia Roberts Giuffre, formerly known as Virginia Roberts."</em> Two existing entities should now merge — and nothing in the pipeline looks back.</p>
+
+  <p>The architecture never collapses two nodes into one. Identity is a <code>same_as</code> edge, and retrieval expands the family at query time. So a retroactive merge is <code>INSERT one edge</code> — not "find every mention edge pointing at B, rewrite it to A, delete B, hope nothing else referenced it." Three consequences: merging is <strong>O(1)</strong> whatever the entity's history; it is <strong>reversible</strong>; and you <strong>never rewrite history</strong>, which is what lets a bad merge be audited later.</p>
+
+  <h3>What stays hard</h3>
+  <ul>
+    <li><strong>Order dependence.</strong> Whichever spelling arrives first becomes the display name. Fixable — pick the family's most complete name at query time rather than storing a winner.</li>
+    <li><strong>Non-determinism.</strong> Re-running the same documents in a different order gives a slightly different graph. Uncomfortable for a system producing legal evidence.</li>
+    <li><strong>Merge cascades.</strong> Merging A and B can make the family match C. Do one pass and flag the rest — cascading merges are how one node swallows the graph.</li>
+  </ul>
+
+  <h3>A new matter, or a new corpus</h3>
+  <p>Harder in a way that is not about compute. Two matters both have a "John Smith," and they are not the same person. <strong>Entity resolution must be scoped to the matter and must never look across the boundary</strong> — that is an ethical-wall requirement, not just correctness.</p>
+
+  <p>Between the two tenancy models, <strong>database per matter</strong> is the default worth taking: isolation is a legal requirement, and legal requirements should not rely on every future query remembering to include a filter. Deleting a matter at engagement end becomes <code>dropDatabase</code>, which is itself a retention requirement. Cross-matter entities — the expert witness who appears in thirty matters — go in a separate, small, <strong>curated</strong> registry, where the link is a human decision and never an automatic merge.</p>
+
+  <p>Thresholds should become per-corpus configuration rather than global environment variables. Depositions and product documentation want different chunk separators, entity types, and similarity thresholds. For a new corpus, calibrate: ingest a sample, run candidate generation at several thresholds, have a human label 100 pairs, record the chosen threshold with the corpus.</p>
+
+  <div class="measured">
+    <span class="tag">The trap worth remembering</span>
+    <p>A sample predicts <strong>cost</strong>. It does not predict <strong>correctness</strong>. The "Mr. Barton" bug could not appear in a 200-chunk test — it only triggers when enough names clear the threshold to crowd out the true match, and at 220 entities not enough did. Onboarding needs a <strong>full-run audit</strong>: sort entities by name similarity and eyeball the top few hundred clusters. An afternoon of work, and the step that catches the class of bug that only exists at scale.</p>
+  </div>
+</section>
+
+<!-- ==================================================================== -->
+<section id="overview">
+  <div class="stephead">
+    <span class="stepnum">&#183;</span>
+    <h2>Corpus-level questions</h2>
+    <span class="yield">the gap</span>
+  </div>
+<p>Asked live, on the shipping two-phase path: <em>"Give me an overview of the documents in this case. What is this corpus about?"</em> It did not refuse. It answered confidently in 54 seconds:</p>
+
+  <blockquote style="border-left:3px solid var(--rule);margin:0 0 1rem;padding-left:1rem;color:var(--ink-soft);max-width:66ch;font-family:Newsreader,Georgia,serif;font-size:1.02rem;">"The corpus involves legal proceedings related to Jeffrey Epstein and Ghislaine Maxwell… <strong>The case includes a complaint against Epstein and Maxwell</strong>, referencing individuals such as Sarah Kellen, Lesley Groff…"</blockquote>
+
+  <p>The corpus is <strong>Giuffre v. Maxwell, 15-cv-07433</strong> — a <strong>defamation</strong> suit. <code>"15-cv-07433"</code> appears 147 times in the chunks and <code>"defamation"</code> 324 times. The answer names neither, and describes the wrong kind of case with the wrong parties. Not a refusal and not an answer: a plausible paragraph that gets the shape of the case wrong.</p>
+
+  <h3>Why</h3>
+  <p><strong>It saw 0.24% of the corpus.</strong> Eight chunks from 5 of 179 documents, three of them from the same exhibit compilation. The graph channel abstained outright — no name to anchor on.</p>
+
+  <p>And the abstention machinery is what let it through. The sufficiency check asks, per chunk, <em>does this bear on the question?</em> For "what is this corpus about," every retrieved chunk genuinely <strong>is</strong> a document in the corpus. Eight independent, individually-truthful yes results sum to <code>sufficient: true</code>. <strong>Corpus-level questions do not fool the gate. They satisfy it.</strong></p>
+
+  <h3>The deeper reason, which channel independence does not touch</h3>
+  <p>Every channel is a top-k selector: vector 50 of 3,338, density 12, lexical 50, graph 50. Union at most ~160 chunks, ~5% of the corpus — then fusion cuts it to 8. More independent channels give a broader pool to pick 8 from. They do not give a view of 3,338.</p>
+
+  <p><strong>The architecture is a selection problem; an overview is an aggregation problem.</strong> Those do not converge however good the selection gets. <code>RETRIEVAL_TOP_K = 8</code> is a constant, and no branch anywhere says "this question is about the whole corpus, do something different."</p>
+
+  <h3>The system already computes the right answer and discards it</h3>
+  <p>On "which courts appeared in these filings," the Graph Path panel lists 25 court entities with mention counts across the whole corpus, while the prose names two. <strong>The panel is the better answer to the question.</strong> The traversal answered it corpus-wide in ~50 ms; the answer path then discarded that and read eight pages.</p>
+
+  <p>The panel is an aggregation. The prose is a selection. The same distinction, visible in one screenshot.</p>
+
+  <div class="caveat">
+    <span class="tag">Known gap</span>
+    <p>Four of the 25 listed "courts" are not courts — <code>Court</code>, <code>SPECIAL MASTER</code>, <code>Your Honor</code> and a judge's name slip past the generic-name filter.</p>
+  </div>
+</section>
+
+<!-- ==================================================================== -->
+<section id="global">
+  <div class="stephead">
+    <span class="stepnum">&#183;</span>
+    <h2>What closing it would take</h2>
+    <span class="yield">the gap</span>
+  </div>
+<p>ArangoDB's Importer builds hierarchical communities and has an LLM write a report per community. <code>enable_community_embeddings</code> defaults to <strong>true</strong> while chunk and edge embeddings default to <strong>false</strong> — that ordering is their statement about which surface is primary. Global Search map-reduces over those reports, and their docs say it suits "questions that require an understanding of the dataset as a whole."</p>
+
+  <h3>The build is the smaller half</h3>
+  <p><code>ANSWER_NUM_CTX</code> is 8,192 and the largest document is <strong>106,681 tokens</strong> — 13× the window. So "summarize each of 179 documents" is not one call per document:</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Stage</th><th class="num">Calls</th></tr></thead>
+    <tbody>
+      <tr><td>L1 — chunk-groups → partial document summaries</td><td class="num">388</td></tr>
+      <tr><td>L2 — roll up the 65 multi-group documents</td><td class="num">65</td></tr>
+      <tr><td>L3 — batch 179 summaries → 8 batches → 1 root</td><td class="num">9</td></tr>
+      <tr><td><strong>Total</strong></td><td class="num"><strong>462 ≈ 4.4 hours</strong></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>The half that makes it work</h3>
+  <p>A static summary tree answers exactly one question: "what is this corpus about." Ask "which courts appear" and the root has nothing to say, because whoever wrote it did not know you would ask.</p>
+
+  <p><strong>Global Search's map-reduce runs at query time, not build time.</strong> Every report is handed the user's question and returns a partial answer plus a relevance score; the zeros are dropped and the survivors reduced into the final answer. The root summary is barely used. The generality comes from asking all 179 units the specific question — which is also why their own docs call it resource-intensive. On this hardware: ~179 map calls × ~4s ≈ <strong>12 minutes per question</strong>, serialized.</p>
+
+  <h3>Units, and the demo-able version</h3>
+  <p>Documents are the free partition — <code>source_file</code> already exists, it is deterministic, and citations stay honest. But the graph is there to do it properly: Leiden over 2,014 entities and 19,009 edges is seconds, and communities cut <em>across</em> documents, which matters when a thread runs through a dozen filings and has no home document.</p>
+
+  <p>The version that fits the latency budget: build the summaries offline, <strong>embed them</strong>, then at query time vector-search the <em>summaries</em>, take the top ~15, and map-reduce over only those — about 60 seconds. Not true Global Search, since top-k returns. But top-15 over 179 summaries that each cover a whole filing is a far better bet than top-8 over 3,338 chunks.</p>
+
+  <div class="caveat">
+    <span class="tag">What it would cost</span>
+    <p>Citations degrade from "page 47, these words" to "filing 1335.4" — trading the strongest differentiator for coverage. An 8B model summarizing OCR-noisy legal exhibits is unmeasured risk. And it goes stale: a new filing invalidates its summary and every roll-up above it.</p>
+  </div>
+</section>
+
+<!-- ==================================================================== -->
+<section id="storage">
+  <div class="stephead">
+    <span class="stepnum">&#183;</span>
+    <h2>Where the artifacts live</h2>
+    <span class="yield">the gap</span>
+  </div>
+<h3>A summary is text. The embedding is a derived index over it.</h3>
+  <p>The shape already exists in <code>je_chunks</code>: a <code>text</code> column for what the LLM reads, a <code>vector</code> column for how you find it. Nobody says a chunk <em>is</em> an embedding. A summary is the same.</p>
+
+  <p><strong>An embedding is one-way.</strong> 1024 floats, and no function turns them back into words. So an embedding can never be an answer — only a lookup key. In the lifecycle, the vector's job ends the moment the search returns IDs; from there the <em>text</em> of the winners goes to the model. The 4.4 hours buys 179 pieces of English prose; the embeddings are seconds of <code>bge-large</code> at the end and are regenerable from the text at any time. The text is not regenerable from anything except another 4.4 hours.</p>
+
+  <h3>Nothing here is temporary</h3>
+  <p>A summary that takes 4.4 hours and is deterministic given the corpus is an <strong>artifact</strong>, the same way <code>je_entities</code> is. The pipeline already made this call once: <code>je_raw_extractions</code> still holds all 3,338 rows even though entities were built from them, because it was expensive and you need it to debug.</p>
+
+  <p>The existing split is clean and worth following — <strong>LanceDB owns text and vectors; ArangoDB owns identity, structure and edges</strong>, with a few scalar fields duplicated into Lance so <code>.where()</code> filtering needs no round trip.</p>
+
+  <ul>
+    <li><strong>ArangoDB <code>je_summaries</code></strong> — deterministic <code>_key</code>, level, scope, the chunk IDs it was built from, model and timestamp.</li>
+    <li><strong>ArangoDB <code>je_summarizes</code></strong> — an edge collection carrying the hierarchy, so "give me the leaves under this batch summary" is one AQL query.</li>
+    <li><strong>LanceDB <code>je_summaries</code></strong> — a <em>new</em> table, not <code>je_chunks</code>.</li>
+  </ul>
+
+  <div class="measured">
+    <span class="tag">The warning that matters most</span>
+    <p>Do not append summaries into the existing <code>je_chunks</code> Lance table. Every existing vector search would start returning summaries as if they were chunks — the naive retriever, the vector and density channels, the graph reranker all change behaviour silently, and <strong>every row in <code>runs.jsonl</code> is invalidated</strong>.</p>
+  </div>
+
+  <p>Keep the 388 L1 partials too. A 4.4-hour job gets interrupted, and when a document summary is wrong you need to know which partial poisoned it. They cost ~250 KB.</p>
+
+  <p>For resumability, improve on the existing flag pattern: the unit of work is a chunk <em>group</em>, which has no home row, so make the key deterministic and <strong>let existence be the flag</strong>. Idempotent by construction — no flag to fall out of sync, and re-running after an interrupt costs one existence check per unit instead of an LLM call.</p>
+
+  <div class="caveat">
+    <span class="tag">Field worth adding</span>
+    <p><code>built_from_chunk_ids</code> (or a hash) on every summary, so staleness after a new filing can be detected rather than assumed — otherwise the only safe move is rebuilding all 462.</p>
+  </div>
+</section>
+
+<hr class="end" />
+<p class="colophon">Version 2 — the same system as the field notes, rebuilt as a sequence rather than a set of topics. Every figure came from a live run, an eval row, or a query against the running database. Corpus: unsealed filings in <em>Giuffre v. Maxwell</em>, No. 15-cv-07433 (S.D.N.Y.).</p>
+
+</main>
+</div>
