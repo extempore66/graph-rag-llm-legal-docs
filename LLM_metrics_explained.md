@@ -355,6 +355,66 @@ Neither of these measures anything. Both change what gets measured. **This
 project has no reranker** — `RETRIEVAL_TOP_K = 8` comes out of the bi-encoder, or
 out of RRF fusion for hybrid, and goes straight into the prompt.
 
+### Reading the channel tags in the UI
+
+`ask.html` puts two families of tag on every source row, and they come from
+different stages of the pipeline. Telling them apart is most of what makes the
+sources table readable.
+
+**Channel tags** — the small grey line under the page numbers. These come from
+the `retrieval` frame, and each names a channel plus the rank that channel gave
+this chunk.
+
+| Tag | Meaning |
+|---|---|
+| `vector#N` | dense cosine similarity |
+| `density#N` | documents with the most chunks in the top-100 pool |
+| `lexical#N` | BM25 over the LLM-expanded query |
+| `graph#N` | entity traversal over the knowledge graph |
+| `reserved` | placed by rule, not by fusion — carries no rank number |
+
+Several tags on one row means several channels nominated that chunk
+independently, which is the strongest signal available. `reserved` has no `#N`
+because it was never ranked by fusion at all: it is one of the four slots
+guaranteed to vector's top-4 — the scar described above.
+
+Two further lines appear only on chunks the graph actually reached: `reached via
+<names>`, which entities the traversal matched there, and beneath it the evidence
+list — entity, role, and the literal quote carried on the `je_mentioned_in` edge.
+
+**`cited`** — the green badge before the filename — is **not** a channel. It
+comes from the `verdict` frame, a different stage entirely (see "Abstention"
+above). It means phase 1's per-passage judge marked that passage relevant.
+
+The two families answer different questions: channel tags say *how this passage
+got here*; `cited` says *what the judge made of it once it arrived*.
+
+#### What a missing tag tells you
+
+Absence is as informative as presence.
+
+**No `graph#` anywhere, with the blue anchored panel showing.** The traversal ran
+and anchored successfully, nominated `CHANNEL_POOL` chunk ids into fusion, and
+then lost every slot. The graph contributed nothing to the answer even though the
+Graph Path panel is full of entities.
+
+Measured on "Which courts appeared in these filings?": the traversal linked 25
+court-type entities, reached 1,299 mentions across 1,004 passages, and nominated
+50 chunks — and not one of the eight final slots carried a `graph#` tag. Four
+were `reserved`; the other four went to chunks carrying two or three tags each.
+
+The reason is structural. Four slots are gone before fusion runs. RRF then
+rewards chunks nominated by more than one channel — and vector and density read
+the *same* embedding search, so they stack routinely. Graph is genuinely
+independent of both, which means it almost never stacks, and has to beat
+two-channel chunks on a single channel's score. **The reserved slots protect
+vector from being outvoted. Nothing protects graph.**
+
+**All eight rows `cited`.** The judge found every passage relevant, so
+sufficiency passed. Worth reading with suspicion on broad questions: the
+threshold is one relevant passage out of eight, and a question wide enough that
+every court filing plausibly bears on it clears that bar every time.
+
 ---
 
 ## What this project actually has
