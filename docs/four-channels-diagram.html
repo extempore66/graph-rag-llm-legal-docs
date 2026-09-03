@@ -1,0 +1,238 @@
+<!doctype html><html><head><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"capabilities":{"artifact":"artifact.BYHii2AW.js","assets":"assets.8Gk803W0.js","comments":"comments.BiSa9uTt.js","db":"db.h-3sndFg.js","downloads":"downloads.th1YuAIk.js","embed":"embed.eqL6deQM.js","endpoints":"endpoints.CfzSv5nM.js","mcp":"mcp.Bvma3qD7.js","network":"network.B5UA9Su4.js","permissions":"permissions.BNySkLV5.js","room":"room.VSdFwTE9.js","sample":"sample.BW2Uysoh.js","self":"artifact.BYHii2AW.js","user":"user.BpKav-Rf.js"},"transforms":"_transforms.DSB5x63f.js","comments":"_comments.CySkkG-P.js","translate":"_translate.5HCW4BJh.js","ldx":"_ldx.DYFNSryD.js"}</script><script>(function(){"use strict";var ce=["light","dark","system"],le=/^[A-Za-z0-9_-]{1,64}$/,Z=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,ue=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function fe(e){const t=e.toLowerCase();return t.startsWith("data-")||t.startsWith("aria-")||ue.has(t)}var He="http://www.w3.org/1999/xhtml",de="http://www.w3.org/2000/svg",pe=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),me=new Set(["script","style"]);function he(e){const t=e.localName.toLowerCase();return e.namespaceURI==="http://www.w3.org/1999/xhtml"?!pe.has(t):e.namespaceURI===de?!me.has(t):!1}function D(e,t){return e===t||(e===160||e===32)&&(t===160||t===32)}function _e(e,t){const r=e.length,n=t.length;let s=0;for(;s<r&&s<n&&D(e.charCodeAt(s),t.charCodeAt(s));)s++;let o=0;for(;o<r-s&&o<n-s&&D(e.charCodeAt(r-1-o),t.charCodeAt(n-1-o));)o++;return{p:s,s:o}}function ve(e,t){const r=e.firstChild;if(e.childNodes.length!==1||r===null||r.nodeType!==Node.TEXT_NODE){e.textContent=t;return}const n=r.data,s=n.length,o=t.length,{p:i,s:c}=_e(n,t);i===s&&c===0&&s===o||r.replaceData(i,s-i-c,t.slice(i,o-c));const m=r.data,d=e.ownerDocument.getSelection?.()??null,v=d!==null&&d.rangeCount>0&&(d.anchorNode===r||d.focusNode===r)?{anchor:d.anchorNode,anchorOffset:d.anchorOffset,focus:d.focusNode,focusOffset:d.focusOffset}:null;let p=-1,y=-1;for(let h=0;h<m.length&&h<t.length;h++){const E=m.charCodeAt(h),A=t.charCodeAt(h);E!==A&&D(E,A)&&(p<0&&(p=h),y=h)}const w=p>=0;if(w&&r.replaceData(p,y-p+1,t.slice(p,y+1)),w&&v!==null&&v.anchor!==null&&v.focus!==null)try{d.setBaseAndExtent(v.anchor,v.anchorOffset,v.focus,v.focusOffset)}catch{}}var ye=new Set(["html","head","body","frameset"]);function we(e){return e.namespaceURI==="http://www.w3.org/1999/xhtml"&&ye.has(e.localName)}function ge(e){if(e===null||typeof e!="object")return!1;const t=e;if(typeof t.target!="string"||!le.test(t.target)||t.text!==void 0&&typeof t.text!="string")return!1;if(t.attrsSet!==void 0){if(t.attrsSet===null||typeof t.attrsSet!="object")return!1;for(const[r,n]of Object.entries(t.attrsSet))if(!Z.test(r)||typeof n!="string")return!1}if(t.attrsRemoved!==void 0){if(!Array.isArray(t.attrsRemoved))return!1;for(const r of t.attrsRemoved)if(typeof r!="string"||!Z.test(r))return!1}return!0}function Ee(e,t){if(e===null||typeof e!="object")return!1;const{seq:r,elements:n}=e;if(typeof r!="number"||!Number.isSafeInteger(r)||!Array.isArray(n)||n.length===0||n.length>64)return!1;for(let s=0;s<n.length;s++)if(!t(n[s]))return!1;return!0}function be(e){return e===null||typeof e!="object"?!1:Ee(e.__frame_patch,ge)}function Ae(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function Te(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function Re(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const r=t.theme;return typeof r=="string"&&ce.includes(r)}var S=/^[\w.-]+\.js$/;function Se(e,t,r){return r?"inert":typeof t=="string"&&S.test(t)?e?[t]:"inert":e?"inert":"framed"}var We="frame_ldx_runtime",Ke="script#an-form";function Le(){return{post(e,t){parent.postMessage(e,t)},on(e){const t=r=>{r.source===parent&&e(r.data,r.origin,r.isTrusted)};return addEventListener("message",t),()=>removeEventListener("message",t)}}}function ke(){return{post:()=>{},on:()=>()=>{}}}var I="__frame_scroll",Pe=150,Oe=310,Ce=160,Me=3e4;function je(){let e=0,t=!1,r=!1,n=!1,s=0,o=null;const i=u=>{try{sessionStorage.setItem(I,JSON.stringify({y:u}))}catch{}},c=()=>{if(clearTimeout(e),o===null)return;const u=o;o=null,i(u)},m=()=>{if(t){t=!1;return}r=!0,o=scrollY,clearTimeout(e),e=setTimeout(c,Pe)};try{addEventListener("scroll",m,{passive:!0}),addEventListener("pagehide",c)}catch{}const d=()=>{let u;try{u=sessionStorage.getItem(I)}catch{return null}if(u===null)return null;let a;try{a=JSON.parse(u)}catch{a=null}const f=a?.y;if(!(typeof f=="number"&&Number.isFinite(f)&&f>=0)){try{sessionStorage.removeItem(I)}catch{}return null}return f};let v=!1;const p=u=>{try{const a=scrollY;scrollTo({top:u,left:0,behavior:"instant"}),s=u,n=!0,clearTimeout(e),o=null,i(u);const f=scrollY;f!==a&&(t=!0),f!==u&&!v&&(v=!0,addEventListener("load",()=>{try{if(scrollY===f){const b=d();p(b!==null?b:s)}}catch{}},{once:!0}))}catch{}},y=()=>{try{return!!location.hash}catch{return!0}};let w=!1;const h=()=>{try{if(w||innerWidth>Oe||innerHeight>Ce)return;w=!0;const u=Date.now(),a=()=>{try{removeEventListener("resize",a)}catch{}if(Date.now()-u>Me||r||y())return;const f=d();p(f!==null?f:s)};addEventListener("resize",a)}catch{}};let E=!1,A=!1;return{restore(){if(E||(E=!0,y()))return;const u=d();u!==null&&(p(u),h())},promoted(){if(A||(A=!0,y()))return;const u=d();u!==null?(p(u),h()):n&&p(s)}}}function Ne(e,t,r,n){let s=null;try{s=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:m=>m})??null}catch{}const o=window.Worker,i=o?.prototype,c=Object.freeze({Worker:o,workerOn:i?.addEventListener,workerPost:i?.postMessage,workerTerminate:i?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,policy:s,origins:t});r(e).then(m=>m?.bootTopLevel?m.bootTopLevel(c,n):n.settle()).catch(()=>n.settle())}var $e="modulepreload",qe=function(e){return"/"+e},Xe={},Be=function(t,r,n){let s=Promise.resolve();function o(i){const c=new Event("vite:preloadError",{cancelable:!0});if(c.payload=i,window.dispatchEvent(c),!c.defaultPrevented)throw i}return s.then(i=>{for(const c of i||[])c.status==="rejected"&&o(c.reason);return t().catch(o)})},De=window===top,J=Object.getOwnPropertyDescriptor(window,"claude"),O=Se(De,window.__FRAME_PREAMBLE?.topLevel,J?.writable===!1),U=typeof O=="object"&&O[0],_=U?ke():Le();(function(){const e=Object.defineProperty,t=globalThis,r=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let n=0;for(let s=0;s<r.length;s++){const o=r[s];try{e(t,o,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[o]}catch{}try{e(t,o,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[o]=="function"&&n++}if(n&&O==="framed")try{_.post({__frame_rtc_lockdown_failed:n},"*")}catch{}})();var Ie=1e4,Ue=2e3,Q=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function ee(e){for(const t of Q)if(t.endsWith(":*"))try{const r=new URL(e);if(`${r.protocol}//${r.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var C=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),x=window.__FRAME_PREAMBLE?.transforms,F=window.__FRAME_PREAMBLE?.comments,z=window.__FRAME_PREAMBLE?.translate,H=window.__FRAME_PREAMBLE?.ldx;function L(e){return Be(()=>import("/_runtime/"+e),void 0)}function te(e,t){return{contract:e.contract,changes:new Set(e.changes??[]),flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:new Map,shellOrigin:t,mount:$,hooks:j,pipe:()=>({wrap:(r,n)=>(...s)=>{try{return n(...s)}catch(o){return Promise.reject(o)}}})}}var M=null,T=null;function re(e,t,r){try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var W=!1,j={editBefore:null,edit:null};function xe(e,t,r=!1){const n=[];let s;if(r)try{j.editBefore?.(e)}catch{}for(const o of e.elements){const i=document.querySelector(`[data-id="${o.target}"]`);if(!i){s=o.target;break}if([...Object.keys(o.attrsSet??{}),...o.attrsRemoved??[]].some(c=>!fe(c))){s=o.target;break}if(o.text!==void 0&&(!he(i)||we(i))){s=o.target;break}for(const[c,m]of Object.entries(o.attrsSet??{}))if(!oe(i,c)){try{i.setAttribute(c,m)}catch{}ne(i,c,m)}for(const c of o.attrsRemoved??[])oe(i,c)||(i.removeAttribute(c),ne(i,c,null));typeof o.text=="string"&&ve(i,o.text),n.push(o.target)}if(r)try{j.edit?.(e.seq,n,s)}catch{}if(s!==void 0){_.post({__frame_patch_miss:{seq:e.seq}},t);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:e.seq,targets:n}}))}catch{}}function ne(e,t,r){if(!(e instanceof HTMLInputElement))return;const n=t.toLowerCase();n==="checked"?e.checked=r!==null:n==="value"&&e.type!=="file"&&(e.value=r??"")}function oe(e,t){const r=t.toLowerCase(),n=e;return r==="data-id"||(r==="value"||r==="checked")&&(n.__artifactSecret===!0||/^(password|hidden|file)$/.test(n.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${e.getAttribute("autocomplete")??""} ${n.autocomplete??""}`))}function se(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,W=!0):W&&(delete t.dataset.theme,t.style.colorScheme="",W=!1)}var N=new Map;function Fe(){let e;const t={u:new Promise(r=>{e=r}),r:r=>{t.done=!0,e(r)},done:!1,nulled:!1};return t}function K(){for(const e of N.values())e.done||(e.nulled=!0,e.r(null))}var ze=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),$=(e,t)=>{const r=N.get(e);if(!r||r.done){r?.nulled&&T&&_.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:e}},T);return}const n=typeof t=="function"?Object.setPrototypeOf(t,ze):Object.assign(Object.create(null),t);typeof n.then=="function"&&delete n.then,r.r(Object.freeze(n))};function ae(){const e=J?.value??{};re(window,"claude",e);for(const t of Object.keys(C)){if(e[t]!==void 0){re(e,t,e[t]);continue}N.set(t,Fe())}if(e.use===void 0){const t=r=>{if(typeof r!="string"||!Object.hasOwn(C,r))return Promise.resolve(null);const n=N.get(r);return n?n.u:Promise.resolve(e[r]??null)};try{Object.defineProperty(e,"use",{value:t,writable:!0,configurable:!0,enumerable:!1})}catch{}}}if(O==="framed"){const e=x&&S.test(x)?L(x).catch(()=>{}):Promise.resolve(void 0),t=a=>{if(a.type==="auxclick"&&a.button!==1)return;const f=a.target,b=f&&f.closest?f.closest("a[href],area[href]"):null;if(!b)return;const P=b.getAttribute("href");if(!P)return;let R;try{R=new URL(P,document.baseURI)}catch{return}if((R.protocol==="http:"||R.protocol==="https:")&&R.origin!==location.origin){a.preventDefault();const k=(b.getAttribute("target")??"").toLowerCase(),g=a.type==="auxclick"||a.metaKey||a.ctrlKey||a.shiftKey||a.altKey||!["","_self","_top","_parent"].includes(k);_.post({__frame_nav:!0,url:R.href,newTab:g},"*")}};addEventListener("click",t,!0),addEventListener("auxclick",t,!0);const r={},n=a=>{a.isTrusted&&(r.pointer=!0)},s=a=>{a.isTrusted&&(r.click=!0)};addEventListener("pointermove",n,{capture:!0,passive:!0}),addEventListener("click",s,{capture:!0,passive:!0}),e.then(a=>{a?.wireNav&&(a.wireNav(),removeEventListener("click",t,!0),removeEventListener("auxclick",t,!0),removeEventListener("pointermove",n,!0),removeEventListener("click",s,!0),a.wireEngagement?.(r))});let o=null;try{o=je()}catch{}ae();let i=null,c=null,m=0;const d=_.on((a,f)=>{ee(f)&&Ae(a)&&(i=a.__frame_init,T=f,d(),clearTimeout(m),c?.())});_.post({__frame_connect:!0},"*");const v=setTimeout,p=clearTimeout;let y=0;const w=()=>{try{_.post({__frame_alive:!0},"*")}catch{}y=v(w,Ue)},h=()=>p(y);w(),addEventListener("load",h,{once:!0});const E=new Promise(a=>{c=a,m=setTimeout(()=>{d(),a()},Ie)}),A=document.readyState==="loading"?new Promise(a=>document.addEventListener("DOMContentLoaded",()=>a(),{once:!0})):Promise.resolve();A.then(()=>{try{o?.restore()}catch{}});const u={cb:null};_.on((a,f)=>{if(ee(f)&&Te(a)){try{o?.promoted()}catch{}u.cb?.()}}),E.then(async()=>{if(!i||!T){K();return}se(i.theme);const a=T;let f=!1,b=!1;_.on((l,X,B)=>{if(X!==a)return;Re(l)&&se(l.__frame_theme.theme),be(l)&&xe(l.__frame_patch,a,B);const Y=l?.__fc_mode;Y&&typeof Y=="object"&&!f&&F&&S.test(F)&&(f=!0,L(F).then(V=>V.install?.(a,Y.on===!0)).catch(()=>{}));const G=l?.__ft_cmd;G&&typeof G=="object"&&!b&&z&&S.test(z)&&(b=!0,L(z).then(V=>V.install?.(a,G)).catch(()=>{}))});const P=Object.keys(i.capabilities??{}).filter(l=>Object.hasOwn(C,l)).map(l=>[l,C[l]]).filter(l=>typeof l[1]=="string"&&S.test(l[1])),R=await Promise.allSettled(P.map(([,l])=>L(l))),k=await e,g=T;if(k?.buildBoot||_.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},g),k?.buildBoot)try{M=k.buildBoot(i,k.TRANSFORMS??{},{shellOrigin:g,mount:$,hooks:j},l=>_.post({__frame_cap_telemetry:l},g))}catch{_.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},g),M=te(i,g)}else M=te(i,g);const q=l=>_.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:l}},g),ie=M;R.forEach((l,X)=>{const B=P[X][0];if(l.status!=="fulfilled"){q(B);return}try{l.value?.install?.(ie)}catch{q(B)}}),K(),await A,h(),_.post({__frame_ready:!0},T),e.then(l=>l?.installSizeReporter?.(g,u)),ie.flags.has("frame_ldx_runtime")&&H&&S.test(H)&&document.querySelector("script#an-form")&&L(H).then(l=>l?.boot?.()).catch(()=>!1).then(l=>{l!==!0&&q("_ldx")})})}else U&&(ae(),Ne(U,Q,L,{settle:K,mount:$}))})();</script><!-- /frame-runtime --><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>Four Channels, One Answer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;0,700;1,400&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --paper:#F1F0EC; --card:#FBFAF8; --card2:#F4F2EE; --ink:#14171B; --ink-soft:#4A5158;
+    --ink-faint:#838B93; --rule:#D8D5CD; --seal:#1E3A5F; --seal-wash:#E7EBF1;
+    --oxide:#A6382C; --oxide-wash:#F6E9E7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#14161A; --card:#1C1F25; --card2:#22262D; --ink:#ECEAE4; --ink-soft:#A8B0B8;
+      --ink-faint:#737C85; --rule:#2E333A; --seal:#8FB3DA; --seal-wash:#1B2836;
+      --oxide:#E08678; --oxide-wash:#33211E;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#14161A; --card:#1C1F25; --card2:#22262D; --ink:#ECEAE4; --ink-soft:#A8B0B8;
+    --ink-faint:#737C85; --rule:#2E333A; --seal:#8FB3DA; --seal-wash:#1B2836;
+    --oxide:#E08678; --oxide-wash:#33211E;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: "Public Sans", system-ui, -apple-system, sans-serif;
+    line-height: 1.5; margin: 0; padding: 1.5rem 1.25rem 4rem;
+  }
+  .slide {
+    max-width: 62rem; margin: 0 auto; background: var(--card);
+    border: 1px solid var(--rule); border-radius: 3px; padding: 2.25rem 2.5rem 2rem;
+    position: relative;
+  }
+  .num {
+    position: absolute; top: 1rem; right: 1.35rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.7rem; letter-spacing: 0.08em; color: var(--ink-faint);
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--seal); margin-bottom: 0.8rem;
+  }
+  h2 {
+    font-family: Spectral, Georgia, serif; font-weight: 600;
+    font-size: clamp(1.5rem, 2.9vw, 2rem); line-height: 1.15; letter-spacing: -0.015em;
+    margin: 0 0 0.35rem; text-wrap: balance;
+  }
+  .lede { font-size: 1rem; color: var(--ink-soft); max-width: 60ch; margin: 0 0 1rem; }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 0 0 1.25rem; }
+
+  figure { margin: 0; }
+  svg { display: block; width: 100%; max-width: 100%; height: auto; }
+  figcaption {
+    margin-top: 0.9rem; font-size: 0.85rem; color: var(--ink-soft);
+    border-left: 3px solid var(--seal); background: var(--seal-wash);
+    padding: 0.6rem 0.9rem;
+  }
+  figcaption b { color: var(--ink); }
+
+  .fn {
+    margin-top: 0.7rem; font-size: 0.8rem; color: var(--ink-faint);
+    display: flex; gap: 0.5rem; align-items: baseline;
+  }
+  .fn .mk { color: var(--oxide); font-weight: 700; }
+
+  /* --- SVG roles. Kept as classes so both themes work from the tokens above
+         and nothing carries a colour that only resolves in one of them. --- */
+  .bx   { fill: var(--card2); stroke: var(--rule); stroke-width: 1; }
+  .bx-s { fill: var(--seal-wash); stroke: var(--seal); stroke-width: 1.25; }
+  .bx-o { fill: var(--oxide-wash); stroke: var(--oxide); stroke-width: 1.25; }
+  .band { fill: var(--seal-wash); stroke: none; }
+  .ttl  { fill: var(--ink); font-weight: 700; font-size: 13.5px; }
+  .ttl-s{ fill: var(--seal); font-weight: 700; font-size: 13.5px; }
+  .tech { fill: var(--seal); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10px; }
+  .plain{ fill: var(--ink-soft); font-size: 10.5px; }
+  .cap  { fill: var(--ink-faint); font-size: 10px; letter-spacing: 0.04em; }
+  .oxi  { fill: var(--oxide); font-size: 10.5px; }
+  .ln   { stroke: var(--ink-faint); stroke-width: 1.1; fill: none; }
+  .ln-o { stroke: var(--oxide); stroke-width: 1.1; fill: none; }
+  .ah   { fill: var(--ink-faint); }
+</style>
+
+<div class="slide">
+  <span class="num">B1</span>
+  <div class="eyebrow">The solution · Retrieval</div>
+  <h2>Four searches, one shortlist</h2>
+  <p class="lede">Every channel searches all 3,338 passages. Nothing is narrowed before they vote.</p>
+  <hr />
+
+  <figure>
+    <svg viewBox="0 0 1000 698" role="img"
+         aria-label="Top-to-bottom flow. One question fans out into three preparation steps: embed the question once, which feeds the vector and density channels; the model widens the query, which feeds the lexical channel; and link names then expand families, which feeds the graph channel. All four channels rank the whole corpus of 3,338 passages independently. Their four ranked lists enter rank fusion, scored as the sum of one over sixty plus rank. Fusion produces eight slots: four reserved for plain similarity and four decided by fusion. The eight passages go to a two-phase answer step: each passage is judged on its own, in its own call, and only if at least one helps is an answer written; otherwise the system declines.">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" class="ah" />
+        </marker>
+      </defs>
+
+      <!-- ============ 1. the question ============ -->
+      <rect x="320" y="8" width="360" height="44" rx="3" class="bx-s" />
+      <text x="500" y="35" text-anchor="middle" class="ttl-s">A question</text>
+
+      <!-- fan-out bus -->
+      <path d="M 500 52 L 500 78" class="ln" />
+      <path d="M 256 78 L 866 78" class="ln" />
+      <path d="M 256 78 L 256 96" class="ln" marker-end="url(#ar)" />
+      <path d="M 622 78 L 622 96" class="ln" marker-end="url(#ar)" />
+      <path d="M 866 78 L 866 96" class="ln" marker-end="url(#ar)" />
+
+      <!-- ============ 2. preparation ============ -->
+      <rect x="22" y="100" width="468" height="54" rx="3" class="bx" />
+      <text x="256" y="121" text-anchor="middle" class="ttl">Embed the question once</text>
+      <text x="256" y="139" text-anchor="middle" class="plain">one similarity search, read two different ways</text>
+
+      <rect x="510" y="100" width="224" height="54" rx="3" class="bx" />
+      <text x="622" y="121" text-anchor="middle" class="ttl">Widen the query <tspan class="oxi">†</tspan></text>
+      <text x="622" y="139" text-anchor="middle" class="plain">synonyms + an invented passage</text>
+
+      <rect x="754" y="100" width="224" height="54" rx="3" class="bx" />
+      <text x="866" y="121" text-anchor="middle" class="ttl">Link the names</text>
+      <text x="866" y="139" text-anchor="middle" class="plain">then expand to every spelling</text>
+
+      <!-- prep -> channels -->
+      <path d="M 256 154 L 256 172" class="ln" />
+      <path d="M 134 172 L 378 172" class="ln" />
+      <path d="M 134 172 L 134 194" class="ln" marker-end="url(#ar)" />
+      <path d="M 378 172 L 378 194" class="ln" marker-end="url(#ar)" />
+      <path d="M 622 154 L 622 194" class="ln" marker-end="url(#ar)" />
+      <path d="M 866 154 L 866 194" class="ln" marker-end="url(#ar)" />
+
+      <!-- ============ 3. the four channels ============ -->
+      <rect x="22"  y="198" width="224" height="104" rx="3" class="bx" />
+      <text x="134" y="224" text-anchor="middle" class="ttl">vector</text>
+      <text x="134" y="243" text-anchor="middle" class="tech">dense cosine</text>
+      <text x="134" y="266" text-anchor="middle" class="plain">passages about the same idea,</text>
+      <text x="134" y="282" text-anchor="middle" class="plain">in different words</text>
+
+      <rect x="266" y="198" width="224" height="104" rx="3" class="bx" />
+      <text x="378" y="224" text-anchor="middle" class="ttl">density</text>
+      <text x="378" y="243" text-anchor="middle" class="tech">document mass in the pool</text>
+      <text x="378" y="266" text-anchor="middle" class="plain">a document that keeps coming up</text>
+      <text x="378" y="282" text-anchor="middle" class="plain">is probably the right one</text>
+
+      <rect x="510" y="198" width="224" height="104" rx="3" class="bx" />
+      <text x="622" y="224" text-anchor="middle" class="ttl">lexical</text>
+      <text x="622" y="243" text-anchor="middle" class="tech">BM25</text>
+      <text x="622" y="266" text-anchor="middle" class="plain">catches the exact term</text>
+      <text x="622" y="282" text-anchor="middle" class="plain">the question used</text>
+
+      <rect x="754" y="198" width="224" height="104" rx="3" class="bx" />
+      <text x="866" y="224" text-anchor="middle" class="ttl">graph</text>
+      <text x="866" y="243" text-anchor="middle" class="tech">entity → family → one hop</text>
+      <text x="866" y="266" text-anchor="middle" class="plain">follows the person, under</text>
+      <text x="866" y="282" text-anchor="middle" class="plain">every spelling</text>
+
+      <!-- channels -> band -->
+      <path d="M 134 302 L 134 326" class="ln" marker-end="url(#ar)" />
+      <path d="M 378 302 L 378 326" class="ln" marker-end="url(#ar)" />
+      <path d="M 622 302 L 622 326" class="ln" marker-end="url(#ar)" />
+      <path d="M 866 302 L 866 326" class="ln" marker-end="url(#ar)" />
+
+      <!-- ============ 4. the anti-funnel claim ============ -->
+      <rect x="22" y="330" width="956" height="38" rx="3" class="band" />
+      <text x="500" y="354" text-anchor="middle" class="ttl-s">
+        each ranks all 3,338 passages — nothing is narrowed before fusion
+      </text>
+
+      <path d="M 500 368 L 500 396" class="ln" marker-end="url(#ar)" />
+
+      <!-- ============ 5. fusion ============ -->
+      <rect x="270" y="400" width="460" height="66" rx="3" class="bx-s" />
+      <text x="500" y="425" text-anchor="middle" class="ttl-s">Rank fusion</text>
+      <text x="500" y="446" text-anchor="middle" class="tech">score = Σ 1 / (60 + rank)</text>
+      <text x="500" y="461" text-anchor="middle" class="plain">position only — no channel needs a weight</text>
+
+      <path d="M 500 466 L 500 496" class="ln" marker-end="url(#ar)" />
+
+      <!-- ============ 6. the eight slots ============ -->
+      <rect x="106" y="500" width="88" height="42" rx="3" class="bx-o" />
+      <rect x="206" y="500" width="88" height="42" rx="3" class="bx-o" />
+      <rect x="306" y="500" width="88" height="42" rx="3" class="bx-o" />
+      <rect x="406" y="500" width="88" height="42" rx="3" class="bx-o" />
+      <text x="150" y="527" text-anchor="middle" class="oxi">vector</text>
+      <text x="250" y="527" text-anchor="middle" class="oxi">vector</text>
+      <text x="350" y="527" text-anchor="middle" class="oxi">vector</text>
+      <text x="450" y="527" text-anchor="middle" class="oxi">vector</text>
+
+      <rect x="506" y="500" width="88" height="42" rx="3" class="bx-s" />
+      <rect x="606" y="500" width="88" height="42" rx="3" class="bx-s" />
+      <rect x="706" y="500" width="88" height="42" rx="3" class="bx-s" />
+      <rect x="806" y="500" width="88" height="42" rx="3" class="bx-s" />
+      <text x="550" y="527" text-anchor="middle" class="ttl-s">fused</text>
+      <text x="650" y="527" text-anchor="middle" class="ttl-s">fused</text>
+      <text x="750" y="527" text-anchor="middle" class="ttl-s">fused</text>
+      <text x="850" y="527" text-anchor="middle" class="ttl-s">fused</text>
+
+      <text x="300" y="562" text-anchor="middle" class="oxi">
+        four slots reserved, so fusion can only add
+      </text>
+      <text x="700" y="562" text-anchor="middle" class="plain">
+        four slots decided by the vote
+      </text>
+      <text x="500" y="580" text-anchor="middle" class="cap">EIGHT PASSAGES</text>
+
+      <path d="M 500 590 L 500 618" class="ln" marker-end="url(#ar)" />
+
+      <!-- ============ 7. the answer ============ -->
+      <rect x="270" y="622" width="460" height="64" rx="3" class="bx" />
+      <text x="500" y="642" text-anchor="middle" class="ttl">Judge each passage on its own, then write</text>
+      <text x="500" y="660" text-anchor="middle" class="plain">one passage per call — never judged as a set</text>
+      <text x="500" y="676" text-anchor="middle" class="plain">if none of them helps, say so and stop</text>
+    </svg>
+
+    <figcaption>
+      <b>Why it is not a funnel.</b> The usual design retrieves cheaply, then re-orders
+      the survivors — so anything ranked badly by the first stage is lost for good.
+      Asked about <i>obiter dicta</i>, the passages that answer it sit at #329 and
+      #2970 by similarity. Only a channel that reads the whole corpus on its own terms
+      ever finds them.
+    </figcaption>
+  </figure>
+
+  <div class="fn">
+    <span class="mk">†</span>
+    <span>Widening the query is best-effort. Measured across eight demo questions,
+      four came back unusable — the model loops on synonyms until it runs out of
+      room, always on the enumerative ones (<i>“which courts appear…”</i>). The
+      lexical channel then searches the raw question instead, and now says so in
+      the log.</span>
+  </div>
+</div>
+
+</body></html>
