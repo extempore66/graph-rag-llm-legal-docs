@@ -23,6 +23,10 @@ Q: Can you find any obiter dicta reference in these documents even if refers to 
 A: In the documents, there is an obiter dicta reference to the *Khalil case* in the context of discussing the pre-litigation privilege. The reference appears in a discussion about the distinction between pre-litigation communications and the situation at hand, with the court noting that the *Khalil case* involved a lawyer sending a cease and desist letter in advance of litigation, which is a different scenario from the case being considered. The reference to *Khalil* is used to illustrate the intended application of the pre-litigation privilege, rather than as a binding precedent. This constitutes obiter dicta.
 
 
+A2: In the Southern District of New York, the court referenced the case of Khalil v. City of New York, 983 F.2d 1047 (2d Cir. 1992), in discussing the pre-litigation privilege. The court also mentioned the case of Boeheim v. City of New York, 2015 WL 5753442 (S.D.N.Y. 2015), in addressing the full context factor in evaluating defamation claims. Additionally, the court cited DirecTV, Inc. v. CommScope, Inc., 224 F.R.D. 682 (S.D.N.Y. 2006), in discussing the improper response to a Rule 34 request.
+
+Note: the substance is corpus-supported, the citation formatting is not — the corpus has *Davis* v. Boeheim (not "Boeheim v. City of New York"), no Westlaw number, and only the short form "DirecTV, 224 F.R.D. at 682" with no party names.
+
 
 --------------------------------------------
 
