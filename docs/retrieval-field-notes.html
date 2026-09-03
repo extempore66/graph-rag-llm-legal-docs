@@ -440,7 +440,9 @@ const guaranteed = vectorIds.slice(0, reserved); // vector's top 4</code></pre>
   <h3>How a document winning turns into a chunk surfacing</h3>
   <p>Density never hands back a document. The document ranking never leaves step 2 — all it does is decide <strong>which chunks get a good density rank</strong>.</p>
 
-  <p>A document that comes 1st contributes chunks at positions 1, 2, 3. A document that comes 2nd contributes chunks at positions 4, 5, 6. Those are the numbers fusion scores, and near the front of a 12-long list they are strong:</p>
+  <p>A document that comes 1st contributes chunks at positions 1, 2, 3. A document that comes 2nd contributes chunks at positions 4, 5, 6.</p>
+
+  <p><strong>Density itself does nothing with these positions</strong> &#8212; it just hands them to fusion. Previewing step 5&#8217;s formula on them:</p>
 
   <pre><code>density position  1  &#8594;  1/(60+1)  = 0.01639
 density position  6  &#8594;  1/(60+6)  = 0.01515
@@ -525,7 +527,9 @@ hypothetical_chunk:
     <p>The corpus's genuine quoted judicial dicta — <em>"the Court notes that…"</em> — sat at <strong>#329 to #2,970 by cosine.</strong> Vector would have to look 2,970 deep. Once the query was widened into the literal phrasing a filing uses, they were <strong>#1 to #4 of only 6 matches.</strong></p>
   </div>
 
-  <p>BM25's IDF term is what does it: "the" and "court" appear everywhere and contribute almost nothing; "dictum" appears in six chunks and contributes almost everything.</p>
+  <p><strong>IDF</strong> is the part that decides how much a word is worth &#8212; rarer words score higher, regardless of the query:</p>
+  <pre><code>idf = log(1 + (N - n + 0.5) / (n + 0.5))     N = 3,338 chunks, n = chunks containing the word</code></pre>
+  <p>&#8220;the&#8221; (n &#8776; 3,338) scores near 0. &#8220;dictum&#8221; (n = 6) scores &#8776; 6 &#8212; roughly 30,000&#215; more per occurrence.</p>
 
   <div class="caveat">
     <span class="tag">Known gap</span>
