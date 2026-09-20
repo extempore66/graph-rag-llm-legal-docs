@@ -1,0 +1,29 @@
+What you must do to build and run lilnux node inside iMac Docker.
+The whole gymnastics is because of lancedb for node's compatibility with linux (v.37)
+Lancedb's compatibility with node for Mac OS stopped at 0.22 so it cannot run
+Note the . (dot) at the end of docker build command below. Must include
+
+
+Run this from the folder where Docker file sits (inside node folder)
+
+docker build -t je-court-rag .
+
+Then
+
+docker run -d \
+  --name je-court-rag \
+  -p 8100:8100 \
+  --env-file .env \
+  --add-host=host.docker.internal:host-gateway \
+  -v /Users/budubasa/Documents/N_Claude_Projects/arango_graph_rag_llm/data/lancedb:/app/data/lancedb \
+  je-court-rag
+
+
+
+Inspection:
+
+docker exec je-court-rag ls -la /app/data/lancedb/
+docker exec je-court-rag ls -la /app/data/lancedb/je_chunks.lance/
+docker inspect je-court-rag --format '{{json .Mounts}}'
+
+docker exec je-court-rag env | grep -E "LANCEDB|ARANGO|OLLAMA|PORT"

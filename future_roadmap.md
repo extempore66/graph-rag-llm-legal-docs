@@ -283,3 +283,54 @@ the class of defect that only exists at scale. Both of the worst bugs in this
 build were library defaults behaving reasonably — case-sensitive comparison, and
 slicing an unsorted list — and neither was visible by reading the code while both
 were obvious in the output.
+
+## 9. Corpus-level questions (a hierarchical summary tree)
+
+Captured 2026-09-07. Documented at length in `docs/retrieval-field-notes.html`
+under "Corpus-level questions" / "What closing it would take" — this section is
+the build plan for that gap.
+
+**The gap.** "What is this corpus about" retrieves 8 chunks from 5 of 179
+documents (0.24% of the corpus) and answers confidently from them anyway,
+because the sufficiency check asks *does this chunk bear on the question* and
+every chunk genuinely does — the gate is satisfied, not fooled. Retrieval is a
+selection problem; a corpus overview is an aggregation problem, and no amount of
+model quality closes that gap on the current architecture. A cheap keyword/regex
+sweep for known patterns (docket numbers, cause-of-action terms) was considered
+and rejected in favor of the real fix.
+
+**L1 — chunk-group summaries.** Group each document's chunks into windows that
+fit `ANSWER_NUM_CTX` (8,192 tokens), in order. One LLM call per group. 179
+documents produce 388 groups.
+
+**L2 — document roll-ups.** For the 65 documents that needed more than one
+group, concatenate that document's group summaries and make one call to produce
+a single document-level summary. Documents that fit in one group already have
+theirs.
+
+**L3 — corpus root.** Batch the 179 document summaries into groups that fit
+context (8 batches, one call each), then one final call over the 8 batch
+summaries to produce a root summary.
+
+**Total cost:** 388 + 65 + 9 = 462 calls, ≈4.4 hours at current per-call
+latency — a one-time build, not a per-query cost.
+
+**Persistence**, following the existing ArangoDB/LanceDB split (ArangoDB owns
+identity and structure, LanceDB owns text and vectors):
+- ArangoDB `je_summaries` — level (L1/L2/L3), scope, source chunk/doc ids, model,
+  timestamp.
+- ArangoDB `je_summarizes` — edge collection carrying the hierarchy.
+- LanceDB `je_summaries` — a new table (not `je_chunks`) holding summary text and
+  its embedding.
+
+**Query-time path.** Embed the question, vector-search the summary table (not
+`je_chunks`), take the top ~15. Map: one call per surviving summary, returning
+whether it bears on the question plus a partial answer. Reduce: combine the
+non-zero partial answers into the final answer. Not true Global Search — top-k
+still applies, at the summary level instead of the chunk level — but a document
+summary covering a whole filing is a far better unit to select over than a
+chunk.
+
+**Batch runner.** Resumable the same way as Step 3 and the dedup pipeline: mark
+each unit done as it completes so a crash resumes rather than restarts; log
+failures to a jsonl file the same way `extraction_failures.jsonl` does.
