@@ -26,6 +26,10 @@ node/logs/
 # bloating repo history.
 shabosan_epstein_files/
 
+# Local ArangoDB dump (extracted entities, chunk text) -- database content
+# for moving the DB between machines, not source. Kept local only.
+arango_dump_export/
+
 # Unfinished decks -- to be added once complete
 Graph_RAG_LLM_Overview.pptx
 Graph_RAG_LLM_Story.pptx
