@@ -334,3 +334,13 @@ chunk.
 **Batch runner.** Resumable the same way as Step 3 and the dedup pipeline: mark
 each unit done as it completes so a crash resumes rather than restarts; log
 failures to a jsonl file the same way `extraction_failures.jsonl` does.
+
+## 10. Question-aware graph answers (text-to-query + completeness and provenance)
+
+Captured 2026-09-20. A direction, not a plan — it wants real investment before anyone builds it.
+
+**The gap.** The graph computes exact counts (`countReachable`: 890 mentions in 876 chunks for one person) but nothing connects a question's *meaning* to that result: there is no question-type detection, and the LLM answers from the top k passages without ever receiving the count. The combination worth pursuing is text-to-query with completeness and provenance on top. A planner LLM turns the question into typed operations from a closed set (count, list, path, existence) and computes nothing itself; deterministic AQL runs them in parallel, one per interpretation of an ambiguous name; a verification trip checks the plan against the graph; the LLM only verbalizes. Text-to-query alone returns an unaudited result. Here every answer arrives with a certificate: the exact edges counted, what was in scope, and the fact that it is *all* of them, which top-k similarity can never claim, including proving zero.
+
+**The distinctive piece is the confidence band.** The graph already stores its own doubt: exact-spelling edges are the floor (592), `je_same_as` families the best estimate (890), and `je_possible_duplicates` the ceiling. A count returned as a range derived from the graph's own uncertainty, not a single number, is what text-to-query products do not do, and it makes probabilistic extraction visible instead of hidden. The planner reintroduces nondeterminism, so its freedom stops at choosing a validated operation; it never writes the query.
+
+**Corpus-level view.** Combine the above with the topic-of-topics summary tree from section 9 (modelled on ArangoDB's architecture) for a comprehensive picture of a corpus: exact answers about entities, hierarchical summaries about themes. The open problem is incorporating new documents into something that comprehensive, since summaries and counts must both be refreshed incrementally (section 7).
